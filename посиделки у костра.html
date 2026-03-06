@@ -1,0 +1,266 @@
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>S.T.A.L.K.E.R. - Personal Zone</title>
+    <style>
+        :root {
+            --pda-text: #e0e0e0;
+            --pda-bg: #1a1a1d;
+            --accent: #ff8c00; /* Оранжевый интерфейс */
+            --border: #4a4a50;
+        }
+
+        body {
+            background-color: #000;
+            color: var(--pda-text);
+            font-family: 'Verdana', sans-serif;
+            height: 100vh;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            background-image: url('https://www.transparenttextures.com/patterns/carbon-fibre.png'); 
+        }
+
+        .pda-device {
+            width: 320px;
+            background: var(--pda-bg);
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 0 50px rgba(255, 140, 0, 0.15);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        /* Экран */
+        .screen {
+            background: #0f0f10;
+            border: 1px inset var(--border);
+            height: 100px;
+            padding: 10px;
+            font-size: 0.8rem;
+            color: var(--accent);
+            font-family: 'Courier New', monospace;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+        }
+
+        .log-line {
+            margin-top: 2px;
+            opacity: 0;
+            animation: fadeIn 0.3s forwards;
+        }
+        @keyframes fadeIn { to { opacity: 1; } }
+
+        h2 {
+            margin: 0;
+            text-align: center;
+            font-size: 1rem;
+            letter-spacing: 2px;
+            color: #888;
+            text-transform: uppercase;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 10px;
+        }
+
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        button {
+            background: #2a2a2e;
+            color: var(--pda-text);
+            border: 1px solid var(--border);
+            padding: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            text-transform: uppercase;
+            transition: 0.2s;
+            letter-spacing: 1px;
+        }
+
+        button:hover {
+            background: var(--accent);
+            color: #000;
+            border-color: var(--accent);
+            box-shadow: 0 0 15px var(--accent);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            background: #151515;
+            color: #555;
+            box-shadow: none;
+            border-color: #333;
+        }
+
+        .volume-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.7rem;
+            color: #888;
+        }
+
+        input[type=range] {
+            flex-grow: 1;
+            accent-color: var(--accent);
+        }
+
+        /* Скрытый плеер */
+        #player-box {
+            position: absolute;
+            top: -9999px;
+            left: -9999px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="pda-device">
+        <h2>MY STALKER PLAYLIST</h2>
+        
+        <div class="screen" id="console">
+            <div class="log-line">>> Плейлист загружен.</div>
+            <div class="log-line">>> Ожидание команды...</div>
+        </div>
+
+        <div class="controls">
+            <button id="btnConnect" onclick="connectToZone()">Присесть к костру</button>
+            <button id="btnStop" onclick="stopZone()" disabled>Отключиться</button>
+        </div>
+
+        <div class="volume-container">
+            <span>VOL</span>
+            <input type="range" id="volSlider" min="0" max="100" value="50" oninput="setVolume(this.value)">
+        </div>
+    </div>
+
+    <div id="player-box">
+        <div id="player"></div>
+    </div>
+
+    <script>
+        // --- ТВОЙ СПИСОК ВИДЕО ---
+        const zoneStations = [
+            'rKDxsFyMLg4', // Чистое Небо: Болота (10 часов)
+            '_wXIi8kY2aI', // Все группировки (Norman)
+            '8hpTQHz8qoQ', // База Свободы
+            '6bzJUanVQ2w'  // Stalker Ambience 4
+        ];
+
+        // --- ПЕРЕМЕННЫЕ ---
+        var player;
+        var isRandomizing = false;
+        const consoleDiv = document.getElementById('console');
+        const btnConnect = document.getElementById('btnConnect');
+        const btnStop = document.getElementById('btnStop');
+
+        // 1. Загрузка API
+        var tag = document.createElement('script');
+        tag.src = "https://www.youtube.com/iframe_api";
+        var firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+        // 2. Инициализация плеера
+        function onYouTubeIframeAPIReady() {
+            player = new YT.Player('player', {
+                height: '200',
+                width: '200',
+                videoId: '',
+                playerVars: { 'controls': 0, 'disablekb': 1 },
+                events: {
+                    'onStateChange': onPlayerStateChange,
+                    'onError': onPlayerError
+                }
+            });
+        }
+
+        // 3. Логика запуска
+        function connectToZone() {
+            btnConnect.disabled = true;
+            log(">> Выбор частоты...");
+
+            // Выбираем случайное видео из твоего списка
+            const randomVideoId = zoneStations[Math.floor(Math.random() * zoneStations.length)];
+            
+            isRandomizing = true;
+
+            // Грузим видео и сразу глушим звук
+            player.loadVideoById(randomVideoId);
+            player.mute(); 
+        }
+
+        // 4. Отслеживание состояния (Рандомизация времени)
+        function onPlayerStateChange(event) {
+            if (event.data == YT.PlayerState.PLAYING) {
+                
+                if (isRandomizing) {
+                    const duration = player.getDuration();
+                    
+                    if (duration > 0) {
+                        // Вычисляем случайное время (минус 2 минуты с конца)
+                        const randomTime = Math.floor(Math.random() * (duration - 120));
+                        
+                        log(`>> Связь установлена.`);
+                        log(`>> Время: ${formatTime(randomTime)}`);
+                        
+                        // Прыгаем на случайное место
+                        player.seekTo(randomTime);
+                        
+                        // Включаем звук
+                        const vol = document.getElementById('volSlider').value;
+                        player.setVolume(vol);
+                        player.unMute();
+                        
+                        isRandomizing = false;
+                        btnStop.disabled = false;
+                    }
+                }
+            }
+        }
+
+        function stopZone() {
+            player.stopVideo();
+            btnConnect.disabled = false;
+            btnStop.disabled = true;
+            log(">> ПДА выключен.");
+        }
+
+        function setVolume(val) {
+            if (player) player.setVolume(val);
+        }
+
+        function onPlayerError(e) {
+            log(">> ОШИБКА ПОТОКА. Ищу другой...");
+            setTimeout(connectToZone, 1000);
+        }
+
+        function log(text) {
+            const line = document.createElement('div');
+            line.className = 'log-line';
+            line.innerText = text;
+            consoleDiv.appendChild(line);
+            if (consoleDiv.children.length > 5) consoleDiv.removeChild(consoleDiv.firstChild);
+        }
+
+        function formatTime(seconds) {
+            const h = Math.floor(seconds / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            return `${h}ч ${m}м`;
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,718 @@
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>Русское Радио + Поиск (Фикс)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <style>
+    :root {
+      color-scheme: light dark;
+      --accent: #0ea5e9;
+      --danger: #ef4444;
+
+      --bg-light:#f5f5f5; --text-light:#111;
+      --card-light:#fff; --muted-light:#555;
+
+      --bg-dark:#020617; --text-dark:#e5e7eb;
+      --card-dark:#0f172a; --muted-dark:#94a3b8;
+    }
+
+    @media(prefers-color-scheme:dark){
+      :root { --bg:var(--bg-dark); --text:var(--text-dark); --card:var(--card-dark); --muted:var(--muted-dark); }
+    }
+    @media(prefers-color-scheme:light){
+      :root { --bg:var(--bg-light); --text:var(--text-light); --card:var(--card-light); --muted:var(--muted-light); }
+    }
+
+    body {
+      margin:0; min-height:100vh;
+      font-family:system-ui,sans-serif;
+      background:var(--bg); color:var(--text);
+      display:flex; align-items:center; justify-content:center;
+      padding:1.5rem;
+    }
+
+    .app {
+      width:100%; max-width:760px;
+      background:var(--card);
+      border-radius:1.5rem;
+      padding:2rem;
+      box-shadow:0 30px 80px rgba(0,0,0,.2);
+    }
+
+    .logo {
+      width:120px;
+      height:auto;
+      margin:0 auto 1rem;
+      display:block;
+    }
+
+    h1 { margin:0 0 0.4rem; font-size:2rem; }
+    .subtitle { margin:0 0 1.5rem; font-size:1.1rem; color:var(--muted); }
+
+    .globe-wrapper { margin:0 auto 1.6rem; width:120px; height:120px; }
+    .globe {
+      width:100%; height:100%; border-radius:999px;
+      background:
+        radial-gradient(circle at 30% 25%, rgba(56,189,248,0.5), transparent 60%),
+        radial-gradient(circle at 70% 75%, rgba(129,140,248,0.45), transparent 60%);
+      border:2px solid rgba(148,163,184,0.4);
+      opacity:.9; transform-origin:center;
+    }
+
+    @media(prefers-reduced-motion:no-preference){
+      .globe.spin { animation:pulse 1.8s ease-in-out infinite; }
+    }
+    @keyframes pulse {
+      0%{transform:scale(1);}
+      50%{transform:scale(1.05); opacity:.92;}
+      100%{transform:scale(1);}
+    }
+
+    .button-row {
+      display:flex; gap:1rem;
+      flex-wrap:wrap; margin-bottom:1rem;
+    }
+
+    button {
+      cursor:pointer; font-size:1rem;
+      padding:0.9rem 1.5rem;
+      border-radius:0.8rem;
+      border:none;
+    }
+
+    .main-btn {
+      background:var(--accent); color:white; font-weight:600;
+    }
+    .main-btn:hover { filter:brightness(1.1); }
+    .main-btn[disabled] { opacity:.5; cursor:wait; }
+
+    .fav-btn {
+      border:2px solid var(--accent);
+      background:transparent;
+      color:var(--accent);
+      font-weight:600;
+    }
+    .fav-btn:hover{ background:var(--accent); color:white; }
+
+    #timerDisplay {
+      font-variant-numeric: tabular-nums;
+      font-weight: 600;
+      color: var(--muted);
+      margin-top: 0.5rem;
+      min-height: 1.5rem;
+      font-size: 1.1rem;
+    }
+
+    .station-card {
+      padding:1rem;
+      background:var(--card);
+      border:1px solid var(--muted);
+      border-radius:1rem;
+      margin-top:1rem;
+    }
+
+    #status {
+      margin-top:1rem; min-height:1.2rem; font-size:1rem;
+    }
+    .status--error{color:var(--danger);}
+    .status--ok{color:var(--accent);}
+
+    .hidden { display:none; }
+
+    /* Элементы списка */
+    .station-item {
+      padding:1rem; border:1px solid var(--muted);
+      border-radius:0.8rem; margin-bottom:1rem;
+    }
+    .station-item h2 {
+        font-size: 1.2rem; margin: 0 0 0.5rem;
+    }
+    .station-info {
+        font-size: 0.9rem; color: var(--muted); margin-bottom: 0.8rem;
+    }
+
+    .play-btn{
+      border:2px solid var(--accent);
+      color:var(--accent); background:transparent;
+      padding:0.5rem 1rem; border-radius:0.6rem;
+    }
+    .play-btn:hover{ background:var(--accent); color:white; }
+
+    .del-btn {
+      background:var(--danger); color:white;
+      padding:0.5rem 1rem; border-radius:0.6rem;
+      margin-left:1rem;
+    }
+
+    .player-section {
+      margin-top:2rem;
+    }
+    .player {
+      padding:0.8rem;
+      background:var(--bg);
+      border:1px solid var(--muted);
+      border-radius:0.8rem;
+    }
+    .volume-label {
+      display:block; margin-top:0.8rem;
+      font-weight:600;
+    }
+    input[type="range"] {
+      width:100%; margin-top:0.5rem;
+    }
+    #nowPlaying {
+      margin-top:0; margin-bottom:0.5rem;
+      font-weight:600;
+    }
+
+    /* Стили поиска */
+    .search-bar {
+        display: flex; gap: 0.5rem; margin-bottom: 1.5rem;
+    }
+    .search-input {
+        flex: 1;
+        padding: 0.8rem;
+        font-size: 1rem;
+        border-radius: 0.8rem;
+        border: 1px solid var(--muted);
+        background: var(--bg);
+        color: var(--text);
+    }
+  </style>
+</head>
+
+<body>
+<main class="app">
+
+  <svg class="logo" aria-hidden="true" width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+    <rect width="256" height="256" fill="white"/>
+    <circle cx="128" cy="136" r="80" fill="none" stroke="#0f172a" stroke-width="6"/>
+    <ellipse cx="128" cy="136" rx="70" ry="26" fill="none" stroke="#0f172a" stroke-width="3"/>
+    <ellipse cx="128" cy="136" rx="70" ry="50" fill="none" stroke="#0f172a" stroke-width="2" stroke-dasharray="4 6"/>
+    <path d="M128 56 C100 90 100 182 128 216" fill="none" stroke="#0f172a" stroke-width="3"/>
+    <path d="M128 56 C156 90 156 182 128 216" fill="none" stroke="#0f172a" stroke-width="3"/>
+    <line x1="70" y1="52" x2="70" y2="92" stroke="#0f172a" stroke-width="5" stroke-linecap="round"/>
+    <circle cx="70" cy="48" r="6" fill="#0f172a"/>
+    <path d="M54 36 A24 24 0 0 1 86 36" fill="none" stroke="#0f172a" stroke-width="3"/>
+    <path d="M48 26 A32 32 0 0 1 92 26" fill="none" stroke="#0f172a" stroke-width="2"/>
+    <line x1="186" y1="52" x2="186" y2="92" stroke="#0f172a" stroke-width="5" stroke-linecap="round"/>
+    <circle cx="186" cy="48" r="6" fill="#0f172a"/>
+    <path d="M170 36 A24 24 0 0 0 202 36" fill="none" stroke="#0f172a" stroke-width="3"/>
+    <path d="M164 26 A32 32 0 0 0 208 26" fill="none" stroke="#0f172a" stroke-width="2"/>
+  </svg>
+
+  <section id="page-main">
+    <h1>Русское Радио</h1>
+    <p class="subtitle">
+      Случайная волна или поиск.
+    </p>
+
+    <div class="globe-wrapper">
+      <div id="globe" class="globe" aria-hidden="true"></div>
+    </div>
+
+    <p>
+      <label>
+        <input type="checkbox" id="allowHttp" checked>
+        Разрешить небезопасные HTTP-потоки
+      </label>
+    </p>
+
+    <div class="button-row">
+      <button id="spinButton" class="main-btn">Слушать Россию</button>
+      <button id="openSearch" class="fav-btn">Поиск</button>
+      <button id="openFav" class="fav-btn">Избранное</button>
+    </div>
+
+    <p id="timerDisplay"></p>
+
+    <article class="station-card">
+      <h2 id="station-name">Станция ещё не выбрана</h2>
+      <p id="station-location"></p>
+      <p id="station-language"></p>
+      <p id="station-tags"></p>
+      <p id="station-homepage"></p>
+
+      <button id="addFavBtn" style="display:none;margin-top:0.5rem;">
+        Добавить в избранное
+      </button>
+    </article>
+
+    <p id="status" role="status" aria-live="polite"></p>
+  </section>
+
+  <section id="page-fav" class="hidden" aria-labelledby="fav-title">
+    <button class="main-btn" id="backFromFav">← Назад</button>
+    <h1 id="fav-title">Избранные радиостанции</h1>
+    <div id="favContainer"></div>
+  </section>
+
+  <section id="page-search" class="hidden" aria-labelledby="search-title">
+    <button class="main-btn" id="backFromSearch">← Назад</button>
+    <h1 id="search-title">Поиск радиостанции</h1>
+    
+    <div class="search-bar">
+        <input type="search" id="searchInput" class="search-input" placeholder="Название (например: Рекорд)" aria-label="Название станции">
+        <button id="searchActionBtn" class="main-btn">Найти</button>
+    </div>
+
+    <p id="searchStatus" role="status" aria-live="polite"></p>
+    <div id="searchResults"></div>
+  </section>
+
+  <section class="player-section" aria-label="Проигрыватель">
+    <div class="player">
+      <p id="nowPlaying">Сейчас ничего не играет</p>
+      <audio id="audioPlayer" controls></audio>
+
+      <label for="volumeSlider" class="volume-label">Громкость</label>
+      <input type="range" id="volumeSlider" min="0" max="100" step="1" aria-label="Громкость">
+
+      <p id="directLink"></p>
+    </div>
+  </section>
+
+</main>
+
+<script>
+const API = "https://de1.api.radio-browser.info";
+const TIMEOUT_SEC = 30;
+
+/* === DOM элементы === */
+const pageMain = document.getElementById("page-main");
+const pageFav = document.getElementById("page-fav");
+const pageSearch = document.getElementById("page-search");
+
+const openFav = document.getElementById("openFav");
+const openSearch = document.getElementById("openSearch");
+const backFromFav = document.getElementById("backFromFav");
+const backFromSearch = document.getElementById("backFromSearch");
+
+const spinButton = document.getElementById("spinButton");
+const audio = document.getElementById("audioPlayer");
+const volumeSlider = document.getElementById("volumeSlider");
+const allowHttpCheckbox = document.getElementById("allowHttp");
+const directEl = document.getElementById("directLink");
+const globe = document.getElementById("globe");
+const nowPlayingEl = document.getElementById("nowPlaying");
+const timerDisplay = document.getElementById("timerDisplay");
+
+/* Карточка станции */
+const nameEl = document.getElementById("station-name");
+const locEl = document.getElementById("station-location");
+const langEl = document.getElementById("station-language");
+const tagsEl = document.getElementById("station-tags");
+const homeEl = document.getElementById("station-homepage");
+const statusEl = document.getElementById("status");
+const addFavBtn = document.getElementById("addFavBtn");
+
+/* Контейнеры списков */
+const favContainer = document.getElementById("favContainer");
+const searchResults = document.getElementById("searchResults");
+const searchInput = document.getElementById("searchInput");
+const searchActionBtn = document.getElementById("searchActionBtn");
+const searchStatus = document.getElementById("searchStatus");
+
+let currentStreamUrl = null;
+let currentStation = null;
+let timerInterval = null;
+let autoRetryTimer = null;
+
+/* === Избранное (LocalStorage) === */
+let favorites = JSON.parse(localStorage.getItem("rg-favorites") || "[]");
+function saveFavorites(){ localStorage.setItem("rg-favorites", JSON.stringify(favorites)); }
+function isFavorite(url) {
+  if (!url) return false;
+  return favorites.some(f => f.url === url);
+}
+
+/* === Громкость === */
+let savedVolume = localStorage.getItem("rg-volume");
+if(savedVolume !== null){
+  audio.volume = savedVolume / 100;
+  volumeSlider.value = savedVolume;
+}else{
+  audio.volume = 1;
+  volumeSlider.value = 100;
+}
+volumeSlider.addEventListener("input", ()=>{
+  audio.volume = volumeSlider.value / 100;
+  localStorage.setItem("rg-volume", volumeSlider.value);
+});
+
+/* === Навигация === */
+function showPage(pageId) {
+    pageMain.classList.add("hidden");
+    pageFav.classList.add("hidden");
+    pageSearch.classList.add("hidden");
+    
+    if(pageId === "main") {
+        pageMain.classList.remove("hidden");
+        spinButton.focus();
+    } else if (pageId === "fav") {
+        pageFav.classList.remove("hidden");
+        renderFavorites();
+        backFromFav.focus();
+    } else if (pageId === "search") {
+        pageSearch.classList.remove("hidden");
+        searchInput.focus();
+    }
+}
+
+openFav.onclick = () => showPage("fav");
+openSearch.onclick = () => showPage("search");
+backFromFav.onclick = () => showPage("main");
+backFromSearch.onclick = () => showPage("main");
+
+/* === Статус и UI === */
+function setStatus(text, type=null){
+  statusEl.textContent = text;
+  statusEl.classList.remove("status--error","status--ok");
+  if(type==="error") statusEl.classList.add("status--error");
+  if(type==="ok") statusEl.classList.add("status--ok");
+}
+
+function setNowPlaying(name){
+  if (name) {
+    nowPlayingEl.textContent = "Сейчас играет: " + name;
+  } else {
+    nowPlayingEl.textContent = "Сейчас ничего не играет";
+  }
+}
+
+function updateStationUI(st){
+  nameEl.textContent = st.name || "Без имени";
+  locEl.textContent = st.country ? "Страна: "+st.country : "";
+  langEl.textContent = st.language ? "Язык: "+st.language : "";
+  tagsEl.textContent = st.tags ? "Тэги: "+st.tags : "";
+  homeEl.innerHTML = st.homepage
+    ? `Сайт: <a href="${st.homepage}" target="_blank">${st.homepage}</a>`
+    : "";
+}
+
+/* === Таймер === */
+function startVisualTimer() {
+  stopVisualTimer();
+  let secondsLeft = TIMEOUT_SEC;
+  timerDisplay.textContent = `Ждем ответа: ${secondsLeft} сек...`;
+  timerInterval = setInterval(() => {
+    secondsLeft--;
+    if (secondsLeft <= 0) {
+      stopVisualTimer();
+      timerDisplay.textContent = "";
+    } else {
+      timerDisplay.textContent = `Ждем ответа: ${secondsLeft} сек...`;
+    }
+  }, 1000);
+}
+
+function stopVisualTimer() {
+  if (timerInterval) {
+    clearInterval(timerInterval);
+    timerInterval = null;
+  }
+  timerDisplay.textContent = "";
+}
+
+/* === СЕТЬ === */
+async function fetchWithTimeout(resource, options = {}) {
+  const { timeout = 30000 } = options;
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+  try {
+    const response = await fetch(resource, { ...options, signal: controller.signal });
+    clearTimeout(id);
+    return response;
+  } catch (error) {
+    clearTimeout(id);
+    throw error;
+  }
+}
+
+async function fetchStream(uuid){
+  const r = await fetchWithTimeout(`${API}/json/url/${uuid}?_=${Date.now()}`, { timeout: TIMEOUT_SEC * 1000 });
+  const d = await r.json();
+  return d.url || "";
+}
+
+/* === ГЛАВНАЯ ФУНКЦИЯ ВОСПРОИЗВЕДЕНИЯ === */
+async function playStation(st) {
+    clearTimeout(autoRetryTimer);
+    
+    // 1. Получаем ссылку на поток
+    let stream = "";
+    if (st.url_resolved) {
+        stream = st.url_resolved;
+    } else if (st.url) {
+        stream = st.url;
+    } else {
+        // Если ссылки нет в объекте, запрашиваем отдельно
+        stream = await fetchStream(st.stationuuid);
+    }
+    
+    // 2. Проверяем HTTP/HTTPS
+    const allowHttp = allowHttpCheckbox.checked;
+    const isHttp = stream.startsWith("http:");
+    
+    if (!allowHttp && isHttp) {
+        // ВАЖНО: Выбрасываем ошибку, чтобы внешний код знал, что ничего не вышло
+        throw new Error("Станция использует HTTP. Включите галочку 'Разрешить HTTP', чтобы слушать.");
+    }
+
+    // 3. Обновляем состояние
+    currentStreamUrl = stream;
+    currentStation = {
+        name: st.name || "Без имени",
+        country: st.country || "",
+        language: st.language || "",
+        tags: st.tags || "",
+        homepage: st.homepage || "",
+        stationuuid: st.stationuuid
+    };
+
+    updateStationUI(currentStation);
+    updateFavButtonState();
+    setNowPlaying(currentStation.name);
+
+    // 4. Запускаем
+    audio.src = stream;
+    
+    // Попытка воспроизведения
+    try {
+        await audio.play();
+        setStatus(`Играет: ${currentStation.name}`, "ok");
+    } catch (e) {
+        // Если браузер заблокировал автоплей, это не критическая ошибка
+        setStatus("Нажми кнопку Play на плеере (автозапуск заблокирован).", "ok");
+    }
+}
+
+/* === ЛОГИКА ПОИСКА === */
+async function performSearch() {
+    const query = searchInput.value.trim();
+    if (!query) {
+        searchStatus.textContent = "Введите название для поиска.";
+        return;
+    }
+    
+    searchResults.innerHTML = "";
+    searchStatus.textContent = "Ищем...";
+    searchActionBtn.disabled = true;
+
+    try {
+        const url = new URL("/json/stations/search", API);
+        url.searchParams.set("name", query);
+        url.searchParams.set("limit", "15");
+        url.searchParams.set("hidebroken", "true");
+        
+        const r = await fetchWithTimeout(url, { timeout: 10000 });
+        const stations = await r.json();
+
+        if (stations.length === 0) {
+            searchStatus.textContent = "Ничего не найдено.";
+        } else {
+            searchStatus.textContent = `Найдено станций: ${stations.length}`;
+            renderSearchResults(stations);
+        }
+    } catch (e) {
+        searchStatus.textContent = "Ошибка поиска. Проверьте интернет.";
+    } finally {
+        searchActionBtn.disabled = false;
+    }
+}
+
+searchActionBtn.onclick = performSearch;
+searchInput.addEventListener("keyup", (e) => {
+    if (e.key === "Enter") performSearch();
+});
+
+function renderSearchResults(stations) {
+    searchResults.innerHTML = "";
+    stations.forEach(st => {
+        const item = document.createElement("div");
+        item.className = "station-item";
+
+        const name = document.createElement("h2");
+        name.textContent = st.name;
+        item.appendChild(name);
+
+        const info = document.createElement("p");
+        info.className = "station-info";
+        let meta = [];
+        if(st.country) meta.push(st.country);
+        if(st.bitrate) meta.push(st.bitrate + " kbps");
+        info.textContent = meta.join(" | ");
+        item.appendChild(info);
+
+        const playBtn = document.createElement("button");
+        playBtn.className = "play-btn";
+        playBtn.textContent = "Слушать";
+        playBtn.onclick = async () => {
+            try {
+                await playStation(st);
+            } catch (e) {
+                setStatus(e.message, "error");
+            }
+        };
+        item.appendChild(playBtn);
+
+        searchResults.appendChild(item);
+    });
+}
+
+/* === КНОПКА "СЛУШАТЬ РОССИЮ" === */
+async function fetchRandomStation(){
+  const url = new URL("/json/stations/search", API);
+  url.searchParams.set("order","random");
+  url.searchParams.set("countrycode", "RU");
+  url.searchParams.set("limit","1");
+  url.searchParams.set("hidebroken","true");
+  url.searchParams.set("_",Date.now());
+  
+  const r = await fetchWithTimeout(url, { timeout: 10000 });
+  const data = await r.json();
+  return data[0];
+}
+
+async function spin(){
+  spinButton.disabled = true;
+  directEl.innerHTML = "";
+  startVisualTimer();
+
+  globe.classList.add("spin");
+  setStatus("Ищем случайную станцию...");
+
+  try{
+    // 1. Находим станцию
+    const st = await fetchRandomStation();
+    if (!st || !st.stationuuid) throw new Error("Не удалось найти станцию. Попробуйте еще раз.");
+
+    // 2. Пытаемся играть
+    await playStation(st);
+    
+    // Если playStation не выбросила ошибку, значит все хорошо.
+    // Таймер проверки тишины
+    autoRetryTimer = setTimeout(() => {
+      if (audio.paused) {
+        setStatus("Станция молчит. Попробуй нажать кнопку снова.", "error");
+      }
+    }, 15000); 
+
+  }
+  catch(e){
+    // 3. Если ошибка (например HTTP), выводим её
+    setStatus(e.message || "Ошибка подключения.", "error");
+    
+    currentStreamUrl = null;
+    currentStation = null;
+    updateFavButtonState();
+  }
+  finally{
+    spinButton.disabled = false;
+    globe.classList.remove("spin");
+    stopVisualTimer();
+  }
+}
+
+spinButton.addEventListener("click", spin);
+
+/* === ИЗБРАННОЕ === */
+function updateFavButtonState(){
+  if (!currentStreamUrl) {
+    addFavBtn.style.display = "none";
+    return;
+  }
+  addFavBtn.style.display = "inline-block";
+  if (isFavorite(currentStreamUrl)) {
+    addFavBtn.textContent = "Удалить из избранного";
+  } else {
+    addFavBtn.textContent = "Добавить в избранное";
+  }
+}
+
+addFavBtn.addEventListener("click", ()=>{
+  if (!currentStreamUrl || !currentStation) return;
+
+  if (isFavorite(currentStreamUrl)) {
+    favorites = favorites.filter(f => f.url !== currentStreamUrl);
+    saveFavorites();
+    setStatus("Удалено из избранного.", "ok");
+  } else {
+    favorites.push({
+      name: currentStation.name || "Без имени",
+      url: currentStreamUrl,
+      country: currentStation.country || "",
+      language: currentStation.language || "",
+      tags: currentStation.tags || "",
+      homepage: currentStation.homepage || "",
+      stationuuid: currentStation.stationuuid
+    });
+    saveFavorites();
+    setStatus("Добавлено в избранное!", "ok");
+  }
+  updateFavButtonState();
+  renderFavorites();
+});
+
+function renderFavorites(){
+  favContainer.innerHTML = "";
+  if(favorites.length === 0){
+    const p = document.createElement("p");
+    p.textContent = "Избранных станций пока нет.";
+    favContainer.appendChild(p);
+    return;
+  }
+  
+  favorites.forEach((st, i)=>{
+    const item=document.createElement("div");
+    item.className="station-item";
+
+    const name=document.createElement("h2");
+    name.textContent=st.name;
+    item.appendChild(name);
+
+    const play=document.createElement("button");
+    play.className="play-btn";
+    play.textContent="Слушать";
+    play.onclick = async ()=>{
+      try {
+          await playStation(st);
+      } catch (e) {
+          setStatus(e.message, "error");
+      }
+    };
+    item.appendChild(play);
+
+    const del=document.createElement("button");
+    del.className="del-btn";
+    del.textContent="Удалить";
+    del.onclick = ()=>{
+      favorites.splice(i,1);
+      saveFavorites();
+      renderFavorites();
+      if (currentStreamUrl === st.url) {
+        currentStreamUrl = null;
+        currentStation = null;
+        updateFavButtonState();
+      }
+    };
+    item.appendChild(del);
+
+    favContainer.appendChild(item);
+  });
+}
+
+audio.addEventListener("playing", () => {
+  clearTimeout(autoRetryTimer);
+  stopVisualTimer();
+  if (currentStation && currentStation.name) {
+    setStatus(`Играет: ${currentStation.name}`, "ok");
+  }
+});
+</script>
+
+</body>
+</html>
