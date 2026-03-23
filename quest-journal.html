@@ -1,0 +1,1807 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Журнал Квестов</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    @layer reset, base, layout, components, utilities;
+
+    @layer reset {
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+      :where(button, a, input, select, textarea) { touch-action: manipulation; }
+      ul, ol { list-style: none; }
+      input, button, textarea, select { font: inherit; color: inherit; }
+      dialog { margin: 0; padding: 0; border: none; background: transparent; max-width: unset; max-height: unset; }
+      dialog:not([open]) { display: none; }
+    }
+
+    @layer base {
+      @property --fill {
+        syntax: '<percentage>';
+        inherits: false;
+        initial-value: 0%;
+      }
+
+      :root {
+        --bg:           oklch(10% .05 272);
+        --surface:      oklch(17% .07 272);
+        --surface-2:    oklch(21% .07 270);
+        --surface-3:    oklch(26% .08 268);
+        --gold:         oklch(75% .17 82);
+        --gold-bright:  oklch(83% .19 82);
+        --gold-dim:     oklch(53% .13 82);
+        --gold-dark:    oklch(28% .09 82);
+        --purple:       oklch(55% .21 292);
+        --purple-dim:   oklch(40% .15 292);
+        --green:        oklch(64% .19 145);
+        --red:          oklch(56% .23 20);
+        --text:         oklch(93% .03 82);
+        --text-dim:     oklch(68% .06 82);
+        --text-muted:   oklch(46% .05 82);
+        --border:       oklch(28% .08 82);
+        --border-gold:  oklch(40% .12 82);
+        --focus:        oklch(80% .18 65);
+        --tab-h:        72px;
+        --r-sm:         4px;
+        --r:            8px;
+        --r-lg:         14px;
+        --shadow:       0 6px 30px oklch(0% 0 0 / .55);
+        --glow-gold:    0 0 28px oklch(75% .17 82 / .22), 0 0 8px oklch(75% .17 82 / .1);
+        --dur-fast:     140ms;
+        --dur-norm:     250ms;
+        --dur-slow:     400ms;
+        --ease:         cubic-bezier(.4,0,.2,1);
+      }
+
+      html { color-scheme: dark; scroll-behavior: smooth; -webkit-tap-highlight-color: transparent; scrollbar-gutter: stable; }
+
+      body {
+        font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        min-block-size: 100dvh;
+        overflow-x: clip;
+        line-height: 1.6;
+      }
+
+      :where(h1, h2, h3) { font-family: 'Cinzel', Georgia, serif; text-wrap: balance; letter-spacing: .04em; }
+      p { text-wrap: pretty; }
+
+      :focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; border-radius: var(--r-sm); }
+
+      .sr-only {
+        position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+        overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0;
+      }
+    }
+
+    @layer layout {
+      .app {
+        display: flex;
+        flex-direction: column;
+        min-block-size: 100dvh;
+        max-inline-size: 500px;
+        margin-inline: auto;
+        position: relative;
+        overflow-x: clip;
+        isolation: isolate;
+      }
+
+      .app::before {
+        content: '';
+        position: fixed;
+        inset: 0;
+        max-inline-size: 500px;
+        margin-inline: auto;
+        background:
+          radial-gradient(ellipse 90% 50% at 50% -5%, oklch(30% .13 292 / .38) 0%, transparent 65%),
+          radial-gradient(ellipse 60% 40% at 100% 100%, oklch(28% .11 300 / .22) 0%, transparent 60%),
+          radial-gradient(ellipse 55% 40% at 0% 60%, oklch(26% .10 82 / .14) 0%, transparent 55%);
+        pointer-events: none;
+        z-index: -1;
+      }
+
+      main { flex: 1; position: relative; overflow: hidden; }
+
+      .screen {
+        position: absolute;
+        inset: 0;
+        overflow-y: auto;
+        overflow-x: clip;
+        padding-block: 1.75rem calc(var(--tab-h) + 1.75rem);
+        padding-inline: 1rem;
+        display: none;
+        flex-direction: column;
+        gap: 1rem;
+        &.active { display: flex; }
+      }
+
+      .screen--sub {
+        padding-block-end: 2rem;
+        z-index: 10;
+        background: var(--bg);
+        display: flex;
+        visibility: hidden;
+        translate: 100% 0;
+        opacity: 0;
+        transition: translate var(--dur-norm) var(--ease), opacity var(--dur-norm) var(--ease), visibility var(--dur-norm);
+        &.active { visibility: visible; translate: 0 0; opacity: 1; pointer-events: auto; }
+      }
+
+      .tab-bar {
+        position: fixed;
+        inset-block-end: 0;
+        inset-inline: 0;
+        block-size: var(--tab-h);
+        background: var(--surface);
+        border-block-start: 1px solid var(--border-gold);
+        display: flex;
+        align-items: stretch;
+        z-index: 100;
+        max-inline-size: 500px;
+        margin-inline: auto;
+        box-shadow: 0 -4px 24px oklch(0% 0 0 / .45);
+        &.hidden { display: none; }
+      }
+    }
+
+    @layer components {
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: .45rem;
+        padding-block: .65rem;
+        padding-inline: 1.2rem;
+        border: 1px solid transparent;
+        border-radius: var(--r);
+        font-family: 'Cinzel', Georgia, serif;
+        font-size: .84rem;
+        font-weight: 600;
+        letter-spacing: .06em;
+        cursor: pointer;
+        min-block-size: 44px;
+        background: transparent;
+        white-space: nowrap;
+        transition: background var(--dur-fast), box-shadow var(--dur-fast), border-color var(--dur-fast), color var(--dur-fast);
+        &:disabled { opacity: .38; cursor: not-allowed; box-shadow: none; }
+      }
+
+      .btn--primary {
+        background: linear-gradient(145deg, oklch(30% .10 82), oklch(22% .08 82));
+        border-color: var(--border-gold);
+        color: var(--gold);
+        box-shadow: inset 0 1px 0 oklch(75% .17 82 / .14);
+        &:not(:disabled):hover {
+          background: linear-gradient(145deg, color-mix(in oklch, var(--gold-dim) 35%, transparent), color-mix(in oklch, var(--gold-dark) 60%, transparent));
+          box-shadow: var(--glow-gold), inset 0 1px 0 oklch(75% .17 82 / .18);
+          border-color: var(--gold-dim);
+        }
+      }
+
+      .btn--danger {
+        background: linear-gradient(145deg, oklch(28% .13 20), oklch(22% .10 20));
+        border-color: oklch(38% .16 20);
+        color: oklch(72% .21 20);
+        &:not(:disabled):hover { box-shadow: 0 0 18px color-mix(in oklch, var(--red) 40%, transparent); border-color: color-mix(in oklch, var(--red) 80%, transparent); }
+      }
+
+      .btn--ghost {
+        border-color: var(--border);
+        color: var(--text-dim);
+        &:not(:disabled):hover { border-color: var(--border-gold); color: var(--text); background: oklch(100% 0 0 / .04); }
+      }
+
+      .btn--sm { padding-block: .38rem; padding-inline: .85rem; font-size: .76rem; min-block-size: 36px; }
+      .btn--full { inline-size: 100%; }
+
+      .fab-wrap {
+        position: sticky;
+        inset-block-end: 1rem;
+        display: flex;
+        justify-content: flex-end;
+        padding-inline-end: .25rem;
+        margin-block-start: auto;
+        pointer-events: none;
+      }
+
+      .btn--fab {
+        pointer-events: all;
+        inline-size: 56px;
+        block-size: 56px;
+        border-radius: 50%;
+        padding: 0;
+        font-size: 1.6rem;
+        font-family: system-ui, sans-serif;
+        background: linear-gradient(145deg, var(--gold-dim), var(--gold-dark));
+        border-color: var(--gold);
+        color: var(--gold-bright);
+        box-shadow: var(--glow-gold), var(--shadow);
+        &:hover { background: linear-gradient(145deg, oklch(58% .15 82), oklch(36% .11 82)); }
+      }
+
+      .btn-back {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: transparent;
+        border: 1px solid var(--border);
+        border-radius: var(--r);
+        color: var(--gold-dim);
+        cursor: pointer;
+        inline-size: 40px;
+        block-size: 40px;
+        flex-shrink: 0;
+        transition: border-color var(--dur-fast), color var(--dur-fast);
+        &:hover { border-color: var(--border-gold); color: var(--gold); }
+        svg { inline-size: 18px; block-size: 18px; }
+      }
+
+      .screen-header { display: flex; align-items: center; gap: .75rem; margin-block-end: .5rem; }
+
+      .screen-title {
+        font-size: clamp(1.35rem, 5vw, 1.75rem);
+        color: var(--gold);
+        text-shadow: 0 0 32px oklch(75% .17 82 / .45);
+        padding-block-end: .55rem;
+        border-block-end: 1px solid var(--border-gold);
+        position: relative;
+        inline-size: 100%;
+        &::after {
+          content: '';
+          position: absolute;
+          inset-block-end: -1px;
+          inset-inline-start: 0;
+          inline-size: 56px;
+          block-size: 2px;
+          background: var(--gold);
+          border-radius: 1px;
+        }
+      }
+
+      .screen-title--sub { font-size: clamp(1.05rem, 4vw, 1.3rem); color: var(--gold); text-shadow: 0 0 20px oklch(75% .17 82 / .3); }
+
+      .quest-list { display: flex; flex-direction: column; gap: .55rem; }
+
+      .quest-item {
+        display: flex;
+        align-items: center;
+        gap: .5rem;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-inline-start: 3px solid var(--border-gold);
+        border-radius: var(--r);
+        padding: .7rem .9rem;
+        transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
+        &:hover { border-color: var(--border-gold); box-shadow: var(--glow-gold); }
+      }
+
+      .quest-item--current {
+        border-inline-start-color: var(--purple);
+        &:hover { box-shadow: 0 0 22px oklch(55% .21 292 / .22); }
+      }
+
+      .quest-item-icon { color: var(--gold-dim); font-size: .95rem; font-style: normal; flex-shrink: 0; user-select: none; }
+      .quest-item--current .quest-item-icon { color: var(--purple-dim); }
+
+      .quest-item-name {
+        flex: 1;
+        min-inline-size: 0;
+        text-align: start;
+        font-size: .93rem;
+        color: var(--text);
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        padding: 0;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        transition: color var(--dur-fast);
+        &:hover { color: var(--gold); }
+      }
+
+      .btn-options {
+        background: transparent;
+        border: 1px solid var(--border);
+        border-radius: var(--r-sm);
+        color: var(--text-muted);
+        cursor: pointer;
+        inline-size: 36px;
+        block-size: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        transition: border-color var(--dur-fast), color var(--dur-fast);
+        &:hover { border-color: var(--border-gold); color: var(--gold-dim); }
+      }
+
+      .btn-complete {
+        background: linear-gradient(145deg, oklch(24% .10 145), oklch(19% .08 145));
+        border: 1px solid oklch(36% .14 145);
+        border-radius: var(--r);
+        color: var(--green);
+        cursor: pointer;
+        padding-block: .35rem;
+        padding-inline: .7rem;
+        font-size: .76rem;
+        font-family: 'Cinzel', serif;
+        font-weight: 600;
+        letter-spacing: .04em;
+        flex-shrink: 0;
+        min-block-size: 36px;
+        transition: box-shadow var(--dur-fast), border-color var(--dur-fast);
+        &:hover { box-shadow: 0 0 14px oklch(64% .19 145 / .25); border-color: var(--green); }
+      }
+
+      .form-group { display: flex; flex-direction: column; gap: .4rem; }
+
+      .form-label { font-size: .8rem; font-family: 'Cinzel', serif; color: var(--text-dim); letter-spacing: .05em; }
+
+      .required-mark { color: var(--red); margin-inline-start: .2rem; }
+
+      .input {
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        border-radius: var(--r);
+        color: var(--text);
+        padding: .7rem .9rem;
+        font-size: .93rem;
+        inline-size: 100%;
+        min-block-size: 44px;
+        transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
+        &::placeholder { color: var(--text-muted); }
+        &:focus { border-color: var(--border-gold); box-shadow: 0 0 0 2px oklch(75% .17 82 / .14); outline: none; }
+        &[aria-invalid="true"] { border-color: var(--red); }
+      }
+
+      .input--textarea {
+        min-block-size: 100px;
+        resize: vertical;
+        max-block-size: 220px;
+        line-height: 1.65;
+        @supports (field-sizing: content) { field-sizing: content; resize: none; }
+      }
+
+      .detail-close-gap { padding-block-start: 1.25rem; }
+
+      .field-error { font-size: .77rem; color: oklch(68% .21 20); display: none; &:not(:empty) { display: block; } }
+
+      @property --xp-pct { syntax: '<percentage>'; inherits: false; initial-value: 0%; }
+
+      .xp-bar-wrap { background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; block-size: 14px; overflow: hidden; }
+
+      .xp-bar-fill {
+        block-size: 100%;
+        inline-size: var(--fill, 0%);
+        background: linear-gradient(90deg, var(--gold-dark), var(--gold-dim) 40%, var(--gold));
+        border-radius: 999px;
+        box-shadow: 0 0 10px oklch(75% .17 82 / .55);
+        position: relative;
+        transition: --fill 700ms var(--ease);
+        &::after {
+          content: '';
+          position: absolute;
+          inset-block-start: 0;
+          inset-inline: 0;
+          block-size: 40%;
+          background: oklch(100% 0 0 / .18);
+          border-radius: 999px;
+        }
+      }
+
+      .level-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        inline-size: 72px;
+        block-size: 72px;
+        border-radius: 50%;
+        background: radial-gradient(circle at 35% 30%, oklch(32% .12 82), oklch(16% .08 82));
+        border: 2px solid var(--border-gold);
+        box-shadow: var(--glow-gold), inset 0 2px 4px oklch(75% .17 82 / .08);
+        font-family: 'Cinzel', serif;
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: var(--gold);
+        text-shadow: 0 0 18px oklch(75% .17 82 / .65);
+        flex-shrink: 0;
+        animation: badge-pulse 4s ease-in-out infinite;
+      }
+
+      @keyframes badge-pulse {
+        0%, 100% { box-shadow: var(--glow-gold), inset 0 2px 4px oklch(75% .17 82 / .08); }
+        50% { box-shadow: 0 0 40px oklch(75% .17 82 / .3), 0 0 12px oklch(75% .17 82 / .15), inset 0 2px 4px oklch(75% .17 82 / .08); }
+      }
+
+      .profile-section {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-block-start: 2px solid var(--border-gold);
+        border-radius: var(--r-lg);
+        padding: 1.2rem;
+        display: flex;
+        flex-direction: column;
+        gap: .8rem;
+      }
+
+      .section-label { font-family: 'Cinzel', serif; font-size: .72rem; color: var(--gold-dim); letter-spacing: .12em; text-transform: uppercase; }
+
+      .profile-name-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+
+      .profile-name {
+        font-family: 'Cinzel', serif;
+        font-size: 1.35rem;
+        font-weight: 600;
+        color: var(--gold);
+        text-shadow: 0 0 22px oklch(75% .17 82 / .32);
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        min-inline-size: 0;
+      }
+
+      .level-row { display: flex; align-items: center; gap: 1rem; }
+      .level-info { flex: 1; min-inline-size: 0; }
+      .level-label { font-size: .76rem; color: var(--text-muted); font-family: 'Cinzel', serif; letter-spacing: .06em; margin-block-end: .2rem; }
+      .level-name { font-family: 'Cinzel', serif; font-size: .98rem; color: var(--text-dim); }
+
+      .xp-progress-label { display: flex; justify-content: space-between; align-items: center; margin-block-end: .45rem; }
+      .xp-pct-text { font-size: .76rem; color: var(--gold-dim); font-family: 'Cinzel', serif; }
+
+      .wishes-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+      .wishes-display { font-family: 'Cinzel', serif; font-size: 1.2rem; color: var(--purple-dim); letter-spacing: .08em; }
+      .wishes-display--active { color: var(--purple); text-shadow: 0 0 16px oklch(55% .21 292 / .45); }
+
+      .profile-actions { display: flex; gap: .7rem; flex-wrap: wrap; }
+      .profile-actions .btn { flex: 1; min-inline-size: 110px; }
+
+      .completed-group { display: flex; flex-direction: column; gap: .4rem; margin-block-end: .85rem; }
+
+      .completed-date {
+        font-size: .78rem;
+        font-family: 'Cinzel', serif;
+        color: var(--gold-dim);
+        letter-spacing: .08em;
+        padding-block: .4rem;
+        border-block-end: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        gap: .5rem;
+        &::before { content: '◈'; color: var(--gold-dim); font-size: .9rem; }
+      }
+
+      .completed-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .75rem;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--r);
+        padding: .6rem .85rem;
+      }
+
+      .completed-item-name {
+        font-size: .88rem;
+        color: var(--text-dim);
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        min-inline-size: 0;
+        flex: 1;
+      }
+
+      .completed-xp { font-family: 'Cinzel', serif; font-size: .8rem; color: var(--gold); font-weight: 600; flex-shrink: 0; white-space: nowrap; }
+
+      .filter-block {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--r-lg);
+        padding: 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: .75rem;
+      }
+
+      .filter-actions { display: flex; gap: .5rem; }
+
+      .tab-btn {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: .26rem;
+        background: transparent;
+        border: none;
+        color: var(--text-muted);
+        cursor: pointer;
+        padding: .5rem .2rem;
+        font-size: .62rem;
+        font-family: 'Cinzel', serif;
+        letter-spacing: .04em;
+        transition: color var(--dur-fast);
+        position: relative;
+        svg { inline-size: 22px; block-size: 22px; }
+        &::before {
+          content: '';
+          position: absolute;
+          inset-block-start: 0;
+          inset-inline: 25%;
+          block-size: 2px;
+          background: var(--gold);
+          border-radius: 0 0 2px 2px;
+          transform: scaleX(0);
+          transition: transform var(--dur-norm) var(--ease);
+        }
+        &[aria-selected="true"] { color: var(--gold); &::before { transform: scaleX(1); } }
+      }
+
+      .options-sheet {
+        position: fixed;
+        inset: auto 0 0 0;
+        max-inline-size: 500px;
+        margin-inline: auto;
+        background: var(--surface);
+        border: 1px solid var(--border-gold);
+        border-block-end: none;
+        border-radius: var(--r-lg) var(--r-lg) 0 0;
+        padding: 1.5rem 1.25rem 2.5rem;
+        box-shadow: 0 -10px 48px oklch(0% 0 0 / .55);
+        &[open] {
+          display: flex;
+          flex-direction: column;
+          gap: .7rem;
+          animation: sheet-in var(--dur-norm) var(--ease);
+        }
+        &::backdrop { background: oklch(0% 0 0 / .62); backdrop-filter: blur(3px); }
+      }
+
+      @keyframes sheet-in {
+        from { translate: 0 100%; opacity: 0; }
+        to   { translate: 0 0;   opacity: 1; }
+      }
+
+      .sheet-cancel { margin-block-start: .3rem; }
+      .sheet-handle { inline-size: 42px; block-size: 4px; background: var(--border-gold); border-radius: 999px; align-self: center; margin-block-end: .2rem; }
+
+      .sheet-title {
+        font-size: .98rem;
+        color: var(--gold);
+        text-align: center;
+        padding-block-end: .7rem;
+        border-block-end: 1px solid var(--border);
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+      }
+
+      .options-list { display: flex; flex-direction: column; gap: .4rem; }
+
+      .option-btn {
+        display: flex;
+        align-items: center;
+        gap: .75rem;
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        border-radius: var(--r);
+        color: var(--text);
+        cursor: pointer;
+        padding: .85rem 1rem;
+        font-size: .9rem;
+        inline-size: 100%;
+        text-align: start;
+        min-block-size: 48px;
+        transition: border-color var(--dur-fast), background var(--dur-fast);
+        &:hover { border-color: var(--border-gold); background: var(--surface-3); }
+      }
+
+      .option-btn--danger {
+        color: oklch(70% .21 20);
+        border-color: oklch(28% .10 20);
+        &:hover { border-color: oklch(42% .18 20); background: oklch(20% .08 20); }
+      }
+
+      .confirm-dlg {
+        max-inline-size: min(420px, calc(100vw - 2rem));
+        background: var(--surface);
+        border: 1px solid var(--border-gold);
+        border-radius: var(--r-lg);
+        padding: 1.75rem;
+        box-shadow: var(--shadow), var(--glow-gold);
+        margin: auto;
+        transition: opacity var(--dur-norm), scale var(--dur-norm) var(--ease);
+        &::backdrop { background: oklch(0% 0 0 / .65); backdrop-filter: blur(4px); }
+        &[open] { opacity: 1; scale: 1; }
+      }
+
+      @starting-style { .confirm-dlg[open] { opacity: 0; scale: .96; } }
+
+      .confirm-heading { font-size: 1.08rem; color: var(--gold); margin-block-end: .6rem; }
+      .confirm-body { font-size: .9rem; color: var(--text-dim); margin-block-end: 1.25rem; line-height: 1.65; }
+      .confirm-actions { display: flex; gap: .75rem; justify-content: flex-end; }
+
+      .levelup-dlg {
+        max-inline-size: min(360px, calc(100vw - 2rem));
+        background: radial-gradient(ellipse at 50% 0%, oklch(22% .10 82 / .9), var(--surface));
+        border: 2px solid var(--border-gold);
+        border-radius: var(--r-lg);
+        padding: 2.25rem 1.75rem;
+        text-align: center;
+        box-shadow: var(--glow-gold), var(--shadow);
+        margin: auto;
+        transition: opacity var(--dur-slow), scale var(--dur-slow) var(--ease);
+        &::backdrop { background: oklch(0% 0 0 / .72); backdrop-filter: blur(6px); }
+        &[open] { opacity: 1; scale: 1; }
+      }
+
+      @starting-style { .levelup-dlg[open] { opacity: 0; scale: .88; } }
+
+      .levelup-star {
+        font-size: 3rem;
+        color: var(--gold);
+        text-shadow: 0 0 24px oklch(75% .17 82 / .9);
+        margin-block-end: .75rem;
+        display: block;
+        animation: star-glow 2.2s ease-in-out infinite;
+        user-select: none;
+      }
+
+      @keyframes star-glow {
+        0%, 100% { text-shadow: 0 0 24px oklch(75% .17 82 / .9); transform: scale(1); }
+        50% { text-shadow: 0 0 50px oklch(75% .17 82 / 1), 0 0 80px oklch(75% .17 82 / .5); transform: scale(1.1); }
+      }
+
+      .levelup-title { font-size: 1.25rem; color: var(--gold-bright); margin-block-end: .6rem; }
+      .levelup-num { font-size: 4rem; font-family: 'Cinzel', serif; font-weight: 700; color: var(--gold); text-shadow: 0 0 28px oklch(75% .17 82 / .7); line-height: 1; margin-block-end: .6rem; }
+      .levelup-reward { font-size: .9rem; color: var(--text-dim); margin-block-end: 1.75rem; strong { color: var(--purple-dim); } }
+
+      .quest-detail-card {
+        background: var(--surface);
+        border: 1px solid var(--border-gold);
+        border-radius: var(--r-lg);
+        padding: 1.5rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        box-shadow: var(--glow-gold);
+      }
+
+      .detail-name { font-family: 'Cinzel', serif; font-size: 1.1rem; color: var(--gold); padding-block-end: .75rem; border-block-end: 1px solid var(--border); }
+      .detail-desc { font-size: .93rem; color: var(--text-dim); line-height: 1.8; white-space: pre-wrap; word-break: break-word; }
+      .detail-desc--empty { font-style: italic; color: var(--text-muted); font-size: .87rem; }
+
+      .empty-state { display: flex; flex-direction: column; align-items: center; gap: .75rem; padding-block: 3rem; text-align: center; }
+      .empty-icon { font-size: 2.8rem; opacity: .35; user-select: none; }
+      .empty-text { font-family: 'Cinzel', serif; font-size: .88rem; color: var(--text-muted); line-height: 1.75; }
+
+      .toast {
+        position: fixed;
+        inset-block-start: 1rem;
+        inset-inline: 1rem;
+        max-inline-size: 460px;
+        margin-inline: auto;
+        background: var(--surface-3);
+        border: 1px solid var(--border-gold);
+        border-radius: var(--r);
+        padding: .75rem 1.1rem;
+        font-size: .86rem;
+        font-family: 'Cinzel', serif;
+        color: var(--gold);
+        letter-spacing: .03em;
+        z-index: 600;
+        box-shadow: var(--shadow);
+        opacity: 0;
+        translate: 0 -10px;
+        transition: opacity var(--dur-norm), translate var(--dur-norm);
+        pointer-events: none;
+        text-align: center;
+        &.visible { opacity: 1; translate: 0 0; }
+      }
+    }
+
+    @layer utilities {
+      .hidden { display: none !important; }
+      .flex-col { display: flex; flex-direction: column; gap: 1rem; }
+      .mt-auto { margin-block-start: auto; }
+    }
+
+    @media (min-width: 480px) {
+      .app::before { border-inline: 1px solid oklch(26% .07 270); }
+    }
+
+    @media (min-width: 768px) {
+      .screen { padding-inline: 1.5rem; }
+      .screen-title { font-size: 1.85rem; }
+    }
+
+    @keyframes vt-fade-in  { from { opacity: 0; translate: 0 6px; } }
+    @keyframes vt-fade-out { to   { opacity: 0; translate: 0 -6px; } }
+
+    ::view-transition-old(root) { animation: 180ms var(--ease) both vt-fade-out; }
+    ::view-transition-new(root) { animation: 220ms var(--ease) both vt-fade-in; }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+      ::view-transition-old(root), ::view-transition-new(root) { animation: none; }
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+  <main id="main-content">
+
+    <section id="screen-quests" class="screen active">
+      <h1 id="quests-h1" class="screen-title" tabindex="-1">Список квестов</h1>
+      <ul id="quest-list" class="quest-list" aria-label="Квесты"></ul>
+      <div class="fab-wrap">
+        <button id="btn-add-quest" class="btn btn--fab" aria-label="Добавить квест">+</button>
+      </div>
+    </section>
+
+    <section id="screen-current" class="screen">
+      <h1 id="current-h1" class="screen-title" tabindex="-1">Текущие квесты</h1>
+      <ul id="current-list" class="quest-list" aria-label="Текущие квесты"></ul>
+    </section>
+
+    <section id="screen-completed" class="screen">
+      <h1 id="completed-h1" class="screen-title" tabindex="-1">Выполненные квесты</h1>
+      <div class="filter-block" role="group" aria-labelledby="filter-label">
+        <p id="filter-label" class="section-label">Фильтр по периоду</p>
+        <div class="form-group">
+          <label for="filter-days" class="form-label">Последние N дней</label>
+          <input type="number" id="filter-days" class="input" placeholder="Все дни" min="1" max="3650" inputmode="numeric">
+        </div>
+        <div class="filter-actions">
+          <button id="btn-filter-apply" class="btn btn--primary btn--sm">Применить</button>
+          <button id="btn-filter-reset" class="btn btn--ghost btn--sm">Сбросить</button>
+        </div>
+      </div>
+      <div id="completed-list" aria-label="Список выполненных квестов"></div>
+    </section>
+
+    <section id="screen-profile" class="screen">
+      <h1 id="profile-h1" class="screen-title" tabindex="-1">Профиль</h1>
+      <div id="profile-content" class="flex-col"></div>
+    </section>
+
+    <section id="screen-quest-form" class="screen screen--sub" aria-labelledby="quest-form-h1">
+      <div class="screen-header">
+        <button class="btn-back" data-back-to="quests" aria-label="Назад к списку квестов">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+        </button>
+        <h1 id="quest-form-h1" class="screen-title--sub" tabindex="-1">Добавить квест</h1>
+      </div>
+      <form id="quest-form" class="flex-col" novalidate>
+        <div class="form-group">
+          <label for="quest-title-input" class="form-label">Название квеста <span class="required-mark" aria-hidden="true">*</span></label>
+          <input type="text" id="quest-title-input" class="input" required maxlength="100" autocomplete="off" aria-required="true" aria-describedby="quest-title-err">
+          <span id="quest-title-err" class="field-error" aria-live="assertive"></span>
+        </div>
+        <div class="form-group">
+          <label for="quest-desc-input" class="form-label">Описание (необязательно)</label>
+          <textarea id="quest-desc-input" class="input input--textarea" maxlength="2000"></textarea>
+        </div>
+        <input type="hidden" id="quest-edit-id">
+        <button type="submit" id="quest-form-submit" class="btn btn--primary btn--full">Подтвердить</button>
+      </form>
+    </section>
+
+    <section id="screen-quest-detail" class="screen screen--sub" aria-labelledby="quest-detail-h1">
+      <div class="screen-header">
+        <button class="btn-back" data-back-to="quests" aria-label="Назад к списку квестов">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+        </button>
+        <h1 id="quest-detail-h1" class="screen-title--sub" tabindex="-1">Квест</h1>
+      </div>
+      <div class="quest-detail-card">
+        <div id="detail-name" class="detail-name"></div>
+        <div id="detail-desc" class="detail-desc"></div>
+      </div>
+      <div class="mt-auto detail-close-gap">
+        <button class="btn btn--ghost btn--full" data-back-to="quests">Закрыть</button>
+      </div>
+    </section>
+
+    <section id="screen-change-name" class="screen screen--sub" aria-labelledby="change-name-h1">
+      <div class="screen-header">
+        <button class="btn-back" data-back-to="profile" aria-label="Назад к профилю">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+        </button>
+        <h1 id="change-name-h1" class="screen-title--sub" tabindex="-1">Введите имя</h1>
+      </div>
+      <form id="change-name-form" class="flex-col" novalidate>
+        <div class="form-group">
+          <label for="name-input" class="form-label">Ваше имя <span class="required-mark" aria-hidden="true">*</span></label>
+          <input type="text" id="name-input" class="input" required maxlength="50" autocomplete="name" aria-required="true" aria-describedby="name-err">
+          <span id="name-err" class="field-error" aria-live="assertive"></span>
+        </div>
+        <button type="submit" class="btn btn--primary btn--full">Подтвердить</button>
+      </form>
+    </section>
+
+  </main>
+
+  <dialog id="options-sheet" class="options-sheet" aria-labelledby="options-title">
+    <div class="sheet-handle" aria-hidden="true"></div>
+    <h2 id="options-title" class="sheet-title"></h2>
+    <ul class="options-list" role="list">
+      <li>
+        <button id="opt-start" class="option-btn">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><polygon points="5,3 19,12 5,21"/></svg>
+          Приступить к выполнению
+        </button>
+      </li>
+      <li>
+        <button id="opt-edit" class="option-btn">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          Изменить
+        </button>
+      </li>
+      <li>
+        <button id="opt-delete" class="option-btn option-btn--danger">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
+          Удалить
+        </button>
+      </li>
+    </ul>
+    <button id="opt-cancel" class="btn btn--ghost btn--full sheet-cancel">Отмена</button>
+  </dialog>
+
+  <dialog id="confirm-dlg" class="confirm-dlg" aria-labelledby="confirm-title">
+    <h2 id="confirm-title" class="confirm-heading"></h2>
+    <p id="confirm-body" class="confirm-body"></p>
+    <div class="confirm-actions">
+      <button id="confirm-no" class="btn btn--ghost">Отмена</button>
+      <button id="confirm-yes" class="btn btn--danger">Да</button>
+    </div>
+  </dialog>
+
+  <dialog id="levelup-dlg" class="levelup-dlg" aria-labelledby="levelup-title">
+    <span class="levelup-star" aria-hidden="true">✦</span>
+    <h2 id="levelup-title" class="levelup-title">Новый уровень!</h2>
+    <div class="levelup-num" id="levelup-num"></div>
+    <p class="levelup-reward">Вы получили <strong>1 желание</strong>!</p>
+    <button id="btn-levelup-ok" class="btn btn--primary btn--full">Принять награду</button>
+  </dialog>
+
+  <nav role="tablist" aria-label="Основная навигация" class="tab-bar" id="tab-bar">
+    <button role="tab" aria-roledescription="вкладка" class="tab-btn" id="tab-quests"
+            aria-controls="screen-quests" aria-label="Список квестов, 1 из 4" aria-selected="true" tabindex="0">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+        <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
+        <rect x="9" y="3" width="6" height="4" rx="1"/>
+        <path d="M9 12h6M9 16h4"/>
+      </svg>
+      <span aria-hidden="true">Квесты</span>
+    </button>
+    <button role="tab" aria-roledescription="вкладка" class="tab-btn" id="tab-current"
+            aria-controls="screen-current" aria-label="Текущие квесты, 2 из 4" aria-selected="false" tabindex="-1">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+        <circle cx="12" cy="12" r="9"/>
+        <path d="M12 7v5l3 3"/>
+      </svg>
+      <span aria-hidden="true">Текущие</span>
+    </button>
+    <button role="tab" aria-roledescription="вкладка" class="tab-btn" id="tab-completed"
+            aria-controls="screen-completed" aria-label="Выполненные квесты, 3 из 4" aria-selected="false" tabindex="-1">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+        <path d="M22 4L12 14.01l-3-3"/>
+      </svg>
+      <span aria-hidden="true">История</span>
+    </button>
+    <button role="tab" aria-roledescription="вкладка" class="tab-btn" id="tab-profile"
+            aria-controls="screen-profile" aria-label="Профиль, 4 из 4" aria-selected="false" tabindex="-1">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+        <circle cx="12" cy="7" r="4"/>
+      </svg>
+      <span aria-hidden="true">Профиль</span>
+    </button>
+  </nav>
+
+  <div id="aria-live-polite" aria-live="polite" aria-atomic="true" class="sr-only"></div>
+  <div id="aria-live-assertive" aria-live="assertive" aria-atomic="true" class="sr-only"></div>
+  <div id="toast" class="toast" role="status"></div>
+  <div id="action-status" tabindex="-1" class="sr-only"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  const STORAGE_KEY = 'rpg_quest_journal_v1';
+  const TOAST_DUR = 3000;
+  const TOAST_ERROR_DUR = 4000;
+  const FOCUS_DELAY_SHORT_MS = 50;
+  const FOCUS_DELAY_MS = 80;
+  const ANNOUNCE_DELAY_MS = 100;
+  const ANNOUNCE_CLEAR_MS = 4000;
+  const XP_PER_QUEST_MIN = 10;
+  const XP_PER_QUEST_MAX = 30;
+  const XP_BASE = 100;
+  const XP_GROWTH = 1.5;
+  const DEFAULT_NAME = 'Данил';
+
+  const ge = id => document.getElementById(id);
+  const eh = s => { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; };
+
+  const xpNeeded = level => Math.round(XP_BASE * Math.pow(XP_GROWTH, level - 1));
+  const randXP = () => Math.floor(Math.random() * (XP_PER_QUEST_MAX - XP_PER_QUEST_MIN + 1)) + XP_PER_QUEST_MIN;
+
+  const LEVEL_TITLES = [
+    '', 'Новобранец', 'Искатель', 'Путник', 'Следопыт', 'Авантюрист',
+    'Охотник', 'Ветеран', 'Страж', 'Рыцарь', 'Легенда',
+    'Мастер', 'Чемпион', 'Хранитель', 'Архонт', 'Бессмертный'
+  ];
+  const levelTitle = lvl => LEVEL_TITLES[Math.min(lvl, LEVEL_TITLES.length - 1)] ?? `Уровень ${lvl}`;
+
+  const TAB_REFRESH = {
+    quests: 'app:quests-refresh', current: 'app:current-refresh',
+    completed: 'app:completed-refresh', profile: 'app:profile-refresh',
+  };
+
+  const defaultState = () => ({
+    quests: [],
+    current: [],
+    completed: [],
+    profile: { name: DEFAULT_NAME, level: 1, xp: 0, wishes: 0 }
+  });
+
+  class Store {
+    #state;
+
+    constructor() {
+      this.#state = this.#load();
+    }
+
+    #load() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        return raw ? { ...defaultState(), ...JSON.parse(raw) } : defaultState();
+      } catch {
+        return defaultState();
+      }
+    }
+
+    #save() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(this.#state));
+      } catch {
+        bus.emit('app:toast', { msg: 'Не удалось сохранить данные', dur: TOAST_ERROR_DUR });
+      }
+    }
+
+    get quests() { return this.#state.quests; }
+    get current() { return this.#state.current; }
+    get completed() { return this.#state.completed; }
+    get profile() { return this.#state.profile; }
+
+    addQuest(title, desc) {
+      const quest = { id: crypto.randomUUID(), title, desc, createdAt: Date.now() };
+      this.#state.quests = [...this.#state.quests, quest];
+      this.#save();
+      return quest;
+    }
+
+    updateQuest(id, title, desc) {
+      this.#state.quests = this.#state.quests.map(q => q.id === id ? { ...q, title, desc } : q);
+      this.#save();
+    }
+
+    deleteQuest(id) {
+      this.#state.quests = this.#state.quests.filter(q => q.id !== id);
+      this.#state.current = this.#state.current.filter(c => c.questId !== id);
+      this.#save();
+    }
+
+    startQuest(questId) {
+      const quest = this.#state.quests.find(q => q.id === questId);
+      if (!quest) return;
+      if (this.#state.current.some(c => c.questId === questId)) return;
+      this.#state.current = [...this.#state.current, { id: crypto.randomUUID(), questId, startedAt: Date.now() }];
+      this.#save();
+    }
+
+    cancelCurrentQuest(currentId) {
+      this.#state.current = this.#state.current.filter(c => c.id !== currentId);
+      this.#save();
+    }
+
+    completeQuest(currentId) {
+      const entry = this.#state.current.find(c => c.id === currentId);
+      if (!entry) return 0;
+      const quest = this.#state.quests.find(q => q.id === entry.questId);
+      if (!quest) { this.cancelCurrentQuest(currentId); return 0; }
+      const xp = randXP();
+      this.#state.current = this.#state.current.filter(c => c.id !== currentId);
+      this.#state.completed = [...this.#state.completed, {
+        id: crypto.randomUUID(),
+        title: quest.title,
+        xp,
+        completedAt: Date.now()
+      }];
+      const levelsGained = this.#addXP(xp);
+      this.#save();
+      return { xp, levelsGained };
+    }
+
+    #addXP(amount) {
+      let { level, xp, wishes } = this.#state.profile;
+      xp += amount;
+      let levelsGained = [];
+      while (xp >= xpNeeded(level)) {
+        xp -= xpNeeded(level);
+        level++;
+        wishes++;
+        levelsGained.push(level);
+      }
+      this.#state.profile = { ...this.#state.profile, level, xp, wishes };
+      return levelsGained;
+    }
+
+    setName(name) {
+      this.#state.profile = { ...this.#state.profile, name };
+      this.#save();
+    }
+
+    spendWish() {
+      if (this.#state.profile.wishes <= 0) return false;
+      this.#state.profile = { ...this.#state.profile, wishes: this.#state.profile.wishes - 1 };
+      this.#save();
+      return true;
+    }
+
+    export() { return JSON.stringify(this.#state, null, 2); }
+
+    import(json) {
+      const parsed = JSON.parse(json);
+      if (!parsed.quests || !parsed.profile) throw new Error('Неверный формат файла');
+      this.#state = { ...defaultState(), ...parsed };
+      this.#save();
+    }
+  }
+
+  class EventBus extends EventTarget {
+    emit(name, detail = {}) { this.dispatchEvent(new CustomEvent(name, { detail })); }
+    on(name, fn) { this.addEventListener(name, fn); }
+  }
+
+  const store = new Store();
+  const bus = new EventBus();
+
+  class ToastBlock {
+    #el = ge('toast');
+    #timer = null;
+
+    constructor() {
+      bus.on('app:toast', e => this.#show(e.detail.msg, e.detail.dur));
+    }
+
+    #show(msg, dur = TOAST_DUR) {
+      this.#el.textContent = msg;
+      this.#el.classList.add('visible');
+      clearTimeout(this.#timer);
+      this.#timer = setTimeout(() => {
+        this.#el.classList.remove('visible');
+        this.#el.textContent = '';
+      }, dur);
+    }
+  }
+
+  class AnnounceBlock {
+    #polite = ge('aria-live-polite');
+    #assertive = ge('aria-live-assertive');
+
+    constructor() {
+      bus.on('app:announce-polite', e => this.#announce(this.#polite, e.detail.msg));
+      bus.on('app:announce-assertive', e => this.#announce(this.#assertive, e.detail.msg));
+    }
+
+    #announce(el, msg) {
+      el.textContent = '';
+      setTimeout(() => { el.textContent = msg; }, ANNOUNCE_DELAY_MS);
+      setTimeout(() => { el.textContent = ''; }, ANNOUNCE_CLEAR_MS);
+    }
+  }
+
+  class ConfirmBlock {
+    #dlg = ge('confirm-dlg');
+    #cb = null;
+    #returnId = null;
+
+    constructor() {
+      ge('confirm-yes').addEventListener('click', () => this.#resolve(true));
+      ge('confirm-no').addEventListener('click', () => this.#resolve(false));
+      this.#dlg.addEventListener('cancel', e => { e.preventDefault(); this.#resolve(false); });
+      bus.on('app:confirm', e => this.#show(e.detail));
+    }
+
+    #show({ title, text, yesText = 'Да', onYes, returnFocusId }) {
+      ge('confirm-title').textContent = title;
+      ge('confirm-body').textContent = text;
+      ge('confirm-yes').textContent = yesText;
+      this.#cb = onYes;
+      this.#returnId = returnFocusId ?? null;
+      ge('main-content').inert = true;
+      this.#dlg.showModal();
+      setTimeout(() => ge('confirm-no').focus(), FOCUS_DELAY_SHORT_MS);
+    }
+
+    #resolve(yes) {
+      this.#dlg.close();
+      ge('main-content').inert = false;
+      if (yes) this.#cb?.();
+      if (this.#returnId) setTimeout(() => ge(this.#returnId)?.focus(), FOCUS_DELAY_MS);
+      this.#cb = null;
+      this.#returnId = null;
+    }
+  }
+
+  class NavigationBlock {
+    #currentTab = 'quests';
+    #tabMap = {
+      quests:    { screen: 'screen-quests',    focus: 'quests-h1',    tab: 'tab-quests' },
+      current:   { screen: 'screen-current',   focus: 'current-h1',   tab: 'tab-current' },
+      completed: { screen: 'screen-completed', focus: 'completed-h1', tab: 'tab-completed' },
+      profile:   { screen: 'screen-profile',   focus: 'profile-h1',   tab: 'tab-profile' },
+    };
+    #subMap = {
+      'quest-form':   { screen: 'screen-quest-form',   focus: 'quest-form-h1' },
+      'quest-detail': { screen: 'screen-quest-detail', focus: 'quest-detail-h1' },
+      'change-name':  { screen: 'screen-change-name',  focus: 'change-name-h1' },
+    };
+    #refreshMap = TAB_REFRESH;
+
+    constructor() {
+      bus.on('app:navigate', e => this.#handleNavigate(e.detail));
+      document.addEventListener('click', e => {
+        const backBtn = e.target.closest('[data-back-to]');
+        if (backBtn) this.#handleBack(backBtn.dataset.backTo);
+      });
+      document.addEventListener('keydown', e => {
+        if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') this.#handleTabArrow(e);
+      });
+      window.addEventListener('popstate', e => {
+        const tab = e.state?.tab ?? 'quests';
+        this.#showTab(tab);
+        const ev = this.#refreshMap[tab];
+        if (ev) bus.emit(ev);
+      });
+      history.replaceState({ tab: 'quests' }, '');
+    }
+
+    #handleNavigate({ tab, sub }) {
+      if (sub) { this.#openSub(sub); return; }
+      if (tab && this.#tabMap[tab]) this.#showTab(tab);
+    }
+
+    #showTab(tabKey) {
+      const cfg = this.#tabMap[tabKey];
+      const run = () => {
+        this.#closeAllSubs();
+        Object.entries(this.#tabMap).forEach(([key, c]) => {
+          ge(c.screen).classList.toggle('active', key === tabKey);
+          const btn = ge(c.tab);
+          btn.setAttribute('aria-selected', String(key === tabKey));
+          btn.tabIndex = key === tabKey ? 0 : -1;
+        });
+        this.#currentTab = tabKey;
+        history.pushState({ tab: tabKey }, '');
+      };
+      if (document.startViewTransition) {
+        document.startViewTransition(run);
+      } else {
+        run();
+      }
+      setTimeout(() => ge(cfg.focus)?.focus(), FOCUS_DELAY_MS);
+    }
+
+    #openSub(subKey) {
+      const cfg = this.#subMap[subKey];
+      if (!cfg) return;
+      ge('tab-bar').classList.add('hidden');
+      ge(cfg.screen).classList.add('active');
+      setTimeout(() => ge(cfg.focus)?.focus(), FOCUS_DELAY_MS);
+    }
+
+    #closeAllSubs() {
+      Object.values(this.#subMap).forEach(c => ge(c.screen)?.classList.remove('active'));
+      ge('tab-bar').classList.remove('hidden');
+    }
+
+    #handleBack(target) {
+      this.#closeAllSubs();
+      if (this.#tabMap[target]) this.#showTab(target);
+    }
+
+    #handleTabArrow(e) {
+      const focused = document.activeElement;
+      if (focused?.getAttribute('role') !== 'tab') return;
+      const keys = Object.keys(this.#tabMap);
+      const idx = keys.indexOf(this.#currentTab);
+      if (idx === -1) return;
+      const next = e.key === 'ArrowRight'
+        ? keys[(idx + 1) % keys.length]
+        : keys[(idx - 1 + keys.length) % keys.length];
+      e.preventDefault();
+      this.#showTab(next);
+      ge(this.#tabMap[next].tab)?.focus();
+    }
+  }
+
+  class TabClickBlock {
+    constructor() {
+      ge('tab-bar').addEventListener('click', e => {
+        const btn = e.target.closest('[role="tab"]');
+        if (!btn) return;
+        const tabKey = btn.id.replace('tab-', '');
+        bus.emit('app:navigate', { tab: tabKey });
+        const ev = TAB_REFRESH[tabKey];
+        if (ev) bus.emit(ev);
+      });
+    }
+  }
+
+  class QuestListBlock {
+    #list = ge('quest-list');
+    #optionsDlg = ge('options-sheet');
+    #activeQuestId = null;
+
+    constructor() {
+      bus.on('app:quests-refresh', () => this.#render());
+      ge('btn-add-quest').addEventListener('click', () => this.#openForm(null));
+      ge('quest-form').addEventListener('submit', e => this.#handleFormSubmit(e));
+
+      this.#list.addEventListener('click', e => {
+        const nameBtn = e.target.closest('.quest-item-name');
+        const optBtn = e.target.closest('.btn-options');
+        if (nameBtn) this.#openDetail(nameBtn.dataset.questId);
+        if (optBtn) this.#openOptions(optBtn.dataset.questId);
+      });
+
+      ge('opt-start').addEventListener('click', () => this.#handleOptStart());
+      ge('opt-edit').addEventListener('click', () => this.#handleOptEdit());
+      ge('opt-delete').addEventListener('click', () => this.#handleOptDelete());
+      ge('opt-cancel').addEventListener('click', () => this.#closeOptions());
+      this.#optionsDlg.addEventListener('cancel', () => this.#closeOptions());
+
+      this.#render();
+    }
+
+    #render() {
+      const quests = store.quests;
+      const currentIds = new Set(store.current.map(c => c.questId));
+      if (!quests.length) {
+        this.#list.innerHTML = `
+          <li>
+            <div class="empty-state">
+              <span class="empty-icon" aria-hidden="true">📜</span>
+              <p class="empty-text">Список квестов пуст.<br>Добавьте первый квест!</p>
+            </div>
+          </li>`;
+        return;
+      }
+      this.#list.innerHTML = quests.map(q => `
+        <li class="quest-item${currentIds.has(q.id) ? ' quest-item--current' : ''}">
+          <i class="quest-item-icon" aria-hidden="true">${currentIds.has(q.id) ? '⚔' : '◆'}</i>
+          <button class="quest-item-name" data-quest-id="${eh(q.id)}"
+                  aria-label="Открыть квест: ${eh(q.title)}">${eh(q.title)}</button>
+          <button class="btn-options" data-quest-id="${eh(q.id)}"
+                  aria-label="Опции квеста ${eh(q.title)}" aria-haspopup="dialog" aria-expanded="false">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+              <circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/>
+            </svg>
+          </button>
+        </li>`).join('');
+    }
+
+    #openForm(questId) {
+      const titleInput = ge('quest-title-input');
+      const descInput = ge('quest-desc-input');
+      const editIdInput = ge('quest-edit-id');
+      const h1 = ge('quest-form-h1');
+      const submitBtn = ge('quest-form-submit');
+      const errEl = ge('quest-title-err');
+
+      titleInput.setAttribute('aria-invalid', 'false');
+      errEl.textContent = '';
+
+      if (questId) {
+        const quest = store.quests.find(q => q.id === questId);
+        if (!quest) return;
+        titleInput.value = quest.title;
+        descInput.value = quest.desc ?? '';
+        editIdInput.value = questId;
+        h1.textContent = 'Изменить квест';
+        submitBtn.textContent = 'Сохранить';
+      } else {
+        titleInput.value = '';
+        descInput.value = '';
+        editIdInput.value = '';
+        h1.textContent = 'Добавить квест';
+        submitBtn.textContent = 'Подтвердить';
+      }
+      bus.emit('app:navigate', { sub: 'quest-form' });
+    }
+
+    #handleFormSubmit(e) {
+      e.preventDefault();
+      const titleInput = ge('quest-title-input');
+      const descInput = ge('quest-desc-input');
+      const editIdInput = ge('quest-edit-id');
+      const errEl = ge('quest-title-err');
+
+      const title = titleInput.value.trim();
+      if (!title) {
+        errEl.textContent = 'Название обязательно';
+        titleInput.setAttribute('aria-invalid', 'true');
+        titleInput.focus();
+        bus.emit('app:announce-assertive', { msg: 'Ошибка: Название обязательно' });
+        return;
+      }
+      titleInput.setAttribute('aria-invalid', 'false');
+      errEl.textContent = '';
+
+      const desc = descInput.value.trim();
+      const editId = editIdInput.value;
+
+      if (editId) {
+        store.updateQuest(editId, title, desc);
+        bus.emit('app:toast', { msg: 'Квест обновлён' });
+        bus.emit('app:announce-polite', { msg: `Квест "${title}" обновлён` });
+      } else {
+        store.addQuest(title, desc);
+        bus.emit('app:toast', { msg: 'Квест добавлен' });
+        bus.emit('app:announce-polite', { msg: `Квест "${title}" добавлен в список` });
+      }
+
+      bus.emit('app:navigate', { tab: 'quests' });
+      bus.emit('app:quests-refresh');
+    }
+
+    #openDetail(questId) {
+      const quest = store.quests.find(q => q.id === questId);
+      if (!quest) return;
+      ge('detail-name').textContent = quest.title;
+      const descEl = ge('detail-desc');
+      if (quest.desc?.trim()) {
+        descEl.textContent = quest.desc.trim();
+        descEl.classList.remove('detail-desc--empty');
+      } else {
+        descEl.textContent = 'Описание не указано';
+        descEl.classList.add('detail-desc--empty');
+      }
+      bus.emit('app:navigate', { sub: 'quest-detail' });
+    }
+
+    #openOptions(questId) {
+      this.#activeQuestId = questId;
+      const quest = store.quests.find(q => q.id === questId);
+      ge('options-title').textContent = quest?.title ?? '';
+      const trigger = this.#list.querySelector(`[data-quest-id="${questId}"].btn-options`);
+      trigger?.setAttribute('aria-expanded', 'true');
+      ge('main-content').inert = true;
+      ge('tab-bar').inert = true;
+      this.#optionsDlg.showModal();
+      setTimeout(() => ge('opt-start').focus(), FOCUS_DELAY_SHORT_MS);
+    }
+
+    #closeOptions() {
+      this.#optionsDlg.close();
+      ge('main-content').inert = false;
+      ge('tab-bar').inert = false;
+      const id = this.#activeQuestId;
+      this.#activeQuestId = null;
+      const trigger = this.#list.querySelector(`[data-quest-id="${id}"].btn-options`);
+      trigger?.setAttribute('aria-expanded', 'false');
+      setTimeout(() => trigger?.focus(), FOCUS_DELAY_MS);
+    }
+
+    #handleOptStart() {
+      const id = this.#activeQuestId;
+      this.#closeOptions();
+      store.startQuest(id);
+      bus.emit('app:quests-refresh');
+      bus.emit('app:current-refresh');
+      const quest = store.quests.find(q => q.id === id);
+      bus.emit('app:toast', { msg: `«${quest?.title}» добавлен в текущие` });
+      bus.emit('app:announce-polite', { msg: `Квест «${quest?.title}» добавлен в текущие квесты` });
+    }
+
+    #handleOptEdit() {
+      const id = this.#activeQuestId;
+      this.#closeOptions();
+      this.#openForm(id);
+    }
+
+    #handleOptDelete() {
+      const id = this.#activeQuestId;
+      const quest = store.quests.find(q => q.id === id);
+      this.#closeOptions();
+      bus.emit('app:confirm', {
+        title: 'Удалить квест?',
+        text: `«${quest?.title}» будет удалён из всех списков. Это нельзя отменить.`,
+        yesText: 'Удалить',
+        onYes: () => {
+          store.deleteQuest(id);
+          bus.emit('app:quests-refresh');
+          bus.emit('app:current-refresh');
+          bus.emit('app:toast', { msg: 'Квест удалён' });
+          bus.emit('app:announce-assertive', { msg: `Квест «${quest?.title}» удалён` });
+        }
+      });
+    }
+  }
+
+  class CurrentQuestsBlock {
+    #list = ge('current-list');
+
+    constructor() {
+      bus.on('app:current-refresh', () => this.#render());
+      this.#list.addEventListener('click', e => {
+        const completeBtn = e.target.closest('.btn-complete');
+        const nameBtn = e.target.closest('.quest-item-name');
+        if (completeBtn) this.#handleComplete(completeBtn.dataset.currentId);
+        if (nameBtn) this.#handleCancel(nameBtn.dataset.currentId, nameBtn.dataset.questTitle);
+      });
+    }
+
+    #render() {
+      const entries = store.current;
+      if (!entries.length) {
+        this.#list.innerHTML = `
+          <li>
+            <div class="empty-state">
+              <span class="empty-icon" aria-hidden="true">⚔️</span>
+              <p class="empty-text">Нет текущих квестов.<br>Выберите квест из списка!</p>
+            </div>
+          </li>`;
+        return;
+      }
+      const questMap = Object.fromEntries(store.quests.map(q => [q.id, q]));
+      this.#list.innerHTML = entries.map(entry => {
+        const quest = questMap[entry.questId];
+        if (!quest) return '';
+        return `
+          <li class="quest-item quest-item--current">
+            <i class="quest-item-icon" aria-hidden="true">⚔</i>
+            <button class="quest-item-name" data-current-id="${eh(entry.id)}" data-quest-title="${eh(quest.title)}"
+                    aria-label="Отменить квест: ${eh(quest.title)}">${eh(quest.title)}</button>
+            <button class="btn-complete" data-current-id="${eh(entry.id)}"
+                    aria-label="Завершить выполнение: ${eh(quest.title)}">Завершить</button>
+          </li>`;
+      }).join('');
+    }
+
+    #handleComplete(currentId) {
+      const result = store.completeQuest(currentId);
+      if (!result) return;
+      const { xp, levelsGained } = result;
+      this.#render();
+      bus.emit('app:toast', { msg: `+${xp} опыта получено!` });
+      bus.emit('app:announce-polite', { msg: `Квест выполнен! Получено ${xp} единиц опыта.` });
+      bus.emit('app:profile-refresh');
+      if (levelsGained.length) {
+        const finalLevel = levelsGained[levelsGained.length - 1];
+        setTimeout(() => bus.emit('app:levelup', { level: finalLevel }), 500);
+      }
+    }
+
+    #handleCancel(currentId, title) {
+      bus.emit('app:confirm', {
+        title: 'Убрать из текущих?',
+        text: `«${title}» будет убран из текущих квестов. Прогресс не сохраняется.`,
+        yesText: 'Убрать',
+        onYes: () => {
+          store.cancelCurrentQuest(currentId);
+          this.#render();
+          bus.emit('app:toast', { msg: 'Квест убран из текущих' });
+          bus.emit('app:announce-polite', { msg: `Квест «${title}» убран из текущих` });
+        }
+      });
+    }
+  }
+
+  class CompletedQuestsBlock {
+    #container = ge('completed-list');
+    #filterDays = null;
+
+    constructor() {
+      bus.on('app:completed-refresh', () => this.#render());
+      ge('btn-filter-apply').addEventListener('click', () => this.#applyFilter());
+      ge('btn-filter-reset').addEventListener('click', () => this.#resetFilter());
+    }
+
+    #applyFilter() {
+      const val = ge('filter-days').value.trim();
+      const n = parseInt(val, 10);
+      if (val && (isNaN(n) || n < 1 || n > 3650)) {
+        bus.emit('app:toast', { msg: 'Введите число от 1 до 3650' });
+        return;
+      }
+      this.#filterDays = val ? n : null;
+      this.#render();
+      bus.emit('app:announce-polite', { msg: this.#filterDays ? `Показаны квесты за ${n} дней` : 'Показаны все квесты' });
+    }
+
+    #resetFilter() {
+      ge('filter-days').value = '';
+      this.#filterDays = null;
+      this.#render();
+      bus.emit('app:announce-polite', { msg: 'Фильтр сброшен' });
+    }
+
+    #render() {
+      const now = Date.now();
+      const cutoff = this.#filterDays ? now - this.#filterDays * 86400000 : 0;
+      const items = store.completed.filter(c => c.completedAt >= cutoff);
+
+      if (!items.length) {
+        this.#container.innerHTML = `
+          <div class="empty-state">
+            <span class="empty-icon" aria-hidden="true">🏆</span>
+            <p class="empty-text">Нет выполненных квестов${this.#filterDays ? ' за этот период' : ''}.</p>
+          </div>`;
+        return;
+      }
+
+      const grouped = new Map();
+      [...items].sort((a, b) => b.completedAt - a.completedAt).forEach(item => {
+        const d = new Date(item.completedAt);
+        const key = d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+        if (!grouped.has(key)) grouped.set(key, []);
+        grouped.get(key).push(item);
+      });
+
+      this.#container.innerHTML = [...grouped.entries()].map(([date, entries]) => `
+        <section class="completed-group" aria-labelledby="date-${eh(date.replace(/\s/g, '-'))}">
+          <h2 class="completed-date" id="date-${eh(date.replace(/\s/g, '-'))}">${eh(date)}</h2>
+          <ul>
+            ${entries.map(item => `
+              <li class="completed-item">
+                <span class="completed-item-name">${eh(item.title)}</span>
+                <span class="completed-xp" aria-label="${item.xp} единиц опыта">+${item.xp} XP</span>
+              </li>`).join('')}
+          </ul>
+        </section>`).join('');
+    }
+  }
+
+  class LevelUpBlock {
+    #dlg = ge('levelup-dlg');
+
+    constructor() {
+      bus.on('app:levelup', e => this.#show(e.detail.level));
+      ge('btn-levelup-ok').addEventListener('click', () => this.#close());
+      this.#dlg.addEventListener('cancel', e => e.preventDefault());
+    }
+
+    #show(level) {
+      ge('levelup-num').textContent = level;
+      ge('main-content').inert = true;
+      ge('tab-bar').inert = true;
+      this.#dlg.showModal();
+      bus.emit('app:announce-assertive', { msg: `Новый уровень! Теперь вы уровень ${level}. Получено одно желание!` });
+      setTimeout(() => ge('btn-levelup-ok').focus(), FOCUS_DELAY_MS);
+    }
+
+    #close() {
+      this.#dlg.close();
+      ge('main-content').inert = false;
+      ge('tab-bar').inert = false;
+      bus.emit('app:profile-refresh');
+    }
+  }
+
+  class ProfileBlock {
+    #container = ge('profile-content');
+
+    constructor() {
+      bus.on('app:profile-refresh', () => this.#render());
+      ge('change-name-form').addEventListener('submit', e => this.#handleNameSubmit(e));
+      this.#render();
+    }
+
+    #render() {
+      const { name, level, xp, wishes } = store.profile;
+      const pct = Math.min(100, Math.round((xp / xpNeeded(level)) * 100));
+      this.#container.innerHTML =
+        this.#htmlHero(name) +
+        this.#htmlLevel(level, pct) +
+        this.#htmlWishes(wishes) +
+        this.#htmlData();
+      this.#bindEvents(wishes);
+    }
+
+    #htmlHero(name) {
+      return `<div class="profile-section">
+        <p class="section-label">Герой</p>
+        <div class="profile-name-row">
+          <span class="profile-name">${eh(name)}</span>
+          <button class="btn btn--ghost btn--sm" id="btn-change-name" aria-label="Изменить имя">Изменить имя</button>
+        </div>
+      </div>`;
+    }
+
+    #htmlLevel(level, pct) {
+      return `<div class="profile-section">
+        <p class="section-label">Уровень</p>
+        <div class="level-row">
+          <div class="level-badge" aria-label="Уровень ${level}">${level}</div>
+          <div class="level-info">
+            <p class="level-label">Текущий уровень</p>
+            <p class="level-name">${eh(levelTitle(level))}</p>
+          </div>
+        </div>
+        <div>
+          <div class="xp-progress-label">
+            <span class="section-label">Прогресс</span>
+            <span class="xp-pct-text">${pct}%</span>
+          </div>
+          <div class="xp-bar-wrap" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"
+               aria-label="Прогресс до следующего уровня: ${pct}%">
+            <div class="xp-bar-fill" style="--fill:${pct}%"></div>
+          </div>
+        </div>
+      </div>`;
+    }
+
+    #htmlWishes(wishes) {
+      const active = wishes > 0;
+      return `<div class="profile-section">
+        <p class="section-label">Желания</p>
+        <div class="wishes-row">
+          <span class="wishes-display ${active ? 'wishes-display--active' : ''}"
+                aria-live="polite" aria-label="Доступных желаний: ${wishes}">
+            ✦ ${wishes} ${this.#wishWord(wishes)}
+          </span>
+          <button class="btn btn--sm ${active ? 'btn--primary' : 'btn--ghost'}" id="btn-spend-wish"
+                  ${!active ? 'disabled' : ''} aria-disabled="${!active}">
+            Потратить желание
+          </button>
+        </div>
+      </div>`;
+    }
+
+    #htmlData() {
+      return `<div class="profile-section">
+        <p class="section-label">Данные</p>
+        <div class="profile-actions">
+          <button class="btn btn--ghost" id="btn-export">↑ Экспорт</button>
+          <button class="btn btn--ghost" id="btn-import">↓ Импорт</button>
+        </div>
+        <button class="btn btn--danger btn--full" id="btn-clear-data">Очистить все данные</button>
+      </div>`;
+    }
+
+    #bindEvents(wishes) {
+      ge('btn-change-name').addEventListener('click', () => {
+        ge('name-input').value = store.profile.name;
+        ge('name-err').textContent = '';
+        ge('name-input').setAttribute('aria-invalid', 'false');
+        bus.emit('app:navigate', { sub: 'change-name' });
+      });
+      ge('btn-spend-wish').addEventListener('click', () => {
+        if (!store.spendWish()) return;
+        this.#render();
+        bus.emit('app:toast', { msg: 'Желание потрачено ✦' });
+        bus.emit('app:announce-polite', { msg: `Желание потрачено. Осталось: ${store.profile.wishes}` });
+      });
+      ge('btn-export').addEventListener('click', () => this.#handleExport());
+      ge('btn-import').addEventListener('click', () => this.#handleImport());
+      ge('btn-clear-data').addEventListener('click', () => this.#handleClear());
+    }
+
+    #wishWord(n) {
+      const mod10 = n % 10;
+      const mod100 = n % 100;
+      if (mod100 >= 11 && mod100 <= 14) return 'желаний';
+      if (mod10 === 1) return 'желание';
+      if (mod10 >= 2 && mod10 <= 4) return 'желания';
+      return 'желаний';
+    }
+
+    #handleNameSubmit(e) {
+      e.preventDefault();
+      const input = ge('name-input');
+      const errEl = ge('name-err');
+      const name = input.value.trim();
+      if (!name) {
+        errEl.textContent = 'Имя не может быть пустым';
+        input.setAttribute('aria-invalid', 'true');
+        input.focus();
+        bus.emit('app:announce-assertive', { msg: 'Ошибка: Имя не может быть пустым' });
+        return;
+      }
+      input.setAttribute('aria-invalid', 'false');
+      errEl.textContent = '';
+      store.setName(name);
+      bus.emit('app:navigate', { tab: 'profile' });
+      bus.emit('app:profile-refresh');
+      bus.emit('app:toast', { msg: `Имя изменено на «${name}»` });
+      bus.emit('app:announce-polite', { msg: `Имя изменено на ${name}` });
+    }
+
+    #handleClear() {
+      bus.emit('app:confirm', {
+        title: 'Очистить все данные?',
+        text: 'Все квесты, прогресс, уровень и история будут удалены без возможности восстановления.',
+        yesText: 'Очистить',
+        onYes: () => {
+          try { localStorage.removeItem(STORAGE_KEY); } catch {}
+          location.reload();
+        }
+      });
+    }
+
+    #handleExport() {
+      try {
+        const data = store.export();
+        const blob = new Blob([data], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `quest-journal-${new Date().toISOString().slice(0, 10)}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        bus.emit('app:toast', { msg: 'Данные экспортированы' });
+        bus.emit('app:announce-polite', { msg: 'Данные успешно экспортированы' });
+      } catch {
+        bus.emit('app:toast', { msg: 'Ошибка экспорта' });
+      }
+    }
+
+    #handleImport() {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.json,application/json';
+      input.addEventListener('change', async () => {
+        const file = input.files?.[0];
+        if (!file) return;
+        try {
+          const text = await file.text();
+          store.import(text);
+          bus.emit('app:quests-refresh');
+          bus.emit('app:current-refresh');
+          bus.emit('app:completed-refresh');
+          bus.emit('app:profile-refresh');
+          bus.emit('app:toast', { msg: 'Данные импортированы' });
+          bus.emit('app:announce-polite', { msg: 'Данные успешно импортированы' });
+        } catch {
+          bus.emit('app:toast', { msg: 'Ошибка: неверный формат файла' });
+          bus.emit('app:announce-assertive', { msg: 'Ошибка импорта: неверный формат файла' });
+        }
+      });
+      input.click();
+    }
+  }
+
+  new ToastBlock();
+  new AnnounceBlock();
+  new ConfirmBlock();
+  new NavigationBlock();
+  new TabClickBlock();
+  new QuestListBlock();
+  new CurrentQuestsBlock();
+  new CompletedQuestsBlock();
+  new LevelUpBlock();
+  new ProfileBlock();
+
+  if (!CSS.supports('field-sizing', 'content')) {
+    const ta = ge('quest-desc-input');
+    const sync = () => { ta.style.blockSize = 'auto'; ta.style.blockSize = ta.scrollHeight + 'px'; };
+    ta.addEventListener('input', sync);
+  }
+
+})();
+</script>
+</body>
+</html>
