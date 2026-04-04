@@ -1,0 +1,345 @@
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Тест скорости</title>
+<style>
+  :root {
+    --bg: #0f0f0f;
+    --surface: #1a1a1a;
+    --border: #2e2e2e;
+    --accent: #4f8ef7;
+    --text: #e8e8e8;
+    --muted: #888;
+    --radius: 12px;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 2rem 1rem;
+    gap: 1.5rem;
+  }
+  h1 { font-size: 1.4rem; font-weight: 700; text-align: center; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.25rem;
+    width: 100%;
+    max-width: 480px;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+  .card-title {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  button {
+    width: 100%;
+    max-width: 480px;
+    padding: 1rem;
+    background: var(--accent);
+    color: #fff;
+    font-size: 1.05rem;
+    font-weight: 600;
+    border: none;
+    border-radius: var(--radius);
+    cursor: pointer;
+  }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  button:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+  .progress-wrap { display: flex; flex-direction: column; gap: 0.4rem; }
+  .progress-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.88rem;
+    color: var(--muted);
+  }
+  .bar-bg {
+    background: var(--border);
+    border-radius: 999px;
+    height: 10px;
+    overflow: hidden;
+  }
+  .bar-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 999px;
+    width: 0%;
+    transition: width 0.15s linear;
+  }
+  .status-box {
+    font-size: 0.95rem;
+    padding: 0.6rem 0.8rem;
+    border-radius: 8px;
+    background: var(--border);
+    color: var(--muted);
+    text-align: center;
+  }
+  .status-box.ok { color: #4caf50; background: #1a2e1a; }
+  .status-box.err { color: #f44336; background: #2e1a1a; }
+  .measurements { display: flex; flex-direction: column; }
+  .m-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.93rem;
+    padding: 0.45rem 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .m-row:last-child { border-bottom: none; }
+  .m-label { color: var(--muted); }
+  .m-value { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .results-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .result-item { text-align: center; }
+  .result-val { font-size: 2.4rem; font-weight: 800; color: var(--accent); line-height: 1; }
+  .result-unit { font-size: 0.85rem; color: var(--muted); margin-top: 0.2rem; }
+  .result-lbl { font-size: 0.8rem; color: var(--muted); margin-top: 0.4rem; }
+  .visually-hidden {
+    position: absolute; width: 1px; height: 1px;
+    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+  }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+
+<h1>Тест скорости интернета</h1>
+
+<div class="card">
+  <p class="card-title">Параметры</p>
+  <p style="font-size:0.9rem;color:var(--muted);">5 замеров · 100 МБ каждый · сервер: Москва (Selectel) · округление до 2 Мбит/с</p>
+</div>
+
+<button id="startBtn">Измерить скорость</button>
+
+<div class="card" id="statusCard" hidden>
+  <p class="card-title">Статус</p>
+  <div class="status-box" id="statusBox">Проверяем доступность сервера...</div>
+</div>
+
+<div class="card" id="progressCard" hidden>
+  <p class="card-title">Общий прогресс</p>
+  <div class="progress-wrap">
+    <div class="progress-row">
+      <span id="totalLabel">Замер 0 из 5</span>
+      <span id="totalPct">0%</span>
+    </div>
+    <div class="bar-bg">
+      <div class="bar-fill" id="totalBar"
+        role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"
+        aria-label="Общий прогресс"></div>
+    </div>
+  </div>
+
+  <p class="card-title" id="currentLabel">Текущий замер</p>
+  <div class="progress-wrap">
+    <div class="progress-row">
+      <span id="currentMB">0 МБ из 100 МБ</span>
+      <span id="currentSpeed">— Мбит/с</span>
+    </div>
+    <div class="bar-bg">
+      <div class="bar-fill" id="currentBar"
+        role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"
+        aria-label="Прогресс текущего замера"></div>
+    </div>
+  </div>
+</div>
+
+<div class="card" id="measurementsCard" hidden>
+  <p class="card-title">Замеры</p>
+  <div class="measurements" id="measurementsList" role="list" aria-live="polite" aria-atomic="false"></div>
+</div>
+
+<div class="card" id="resultsCard" hidden>
+  <p class="card-title">Результат</p>
+  <div class="results-grid">
+    <div class="result-item">
+      <div class="result-val" id="resultMode">—</div>
+      <div class="result-unit">Мбит/с</div>
+      <div class="result-lbl">Модальная скорость</div>
+    </div>
+    <div class="result-item">
+      <div class="result-val" id="resultAvg">—</div>
+      <div class="result-unit">Мбит/с</div>
+      <div class="result-lbl">Средняя скорость</div>
+    </div>
+  </div>
+</div>
+
+<div id="live" class="visually-hidden" aria-live="assertive" aria-atomic="true"></div>
+
+<script>
+const SERVER_URL = 'https://speedtest.selectel.ru/100MB';
+const TARGET_BYTES = 100 * 1024 * 1024;
+const TOTAL = 5;
+const ROUND_TO = 2;
+
+const $ = id => document.getElementById(id);
+const announce = msg => { $('live').textContent = ''; setTimeout(() => $('live').textContent = msg, 50); };
+
+const setStatus = (text, type) => {
+  const box = $('statusBox');
+  box.textContent = text;
+  box.className = 'status-box' + (type ? ' ' + type : '');
+};
+
+const setTotalProgress = done => {
+  const pct = Math.round(done / TOTAL * 100);
+  $('totalBar').style.width = pct + '%';
+  $('totalBar').setAttribute('aria-valuenow', pct);
+  $('totalLabel').textContent = `Замер ${done} из ${TOTAL}`;
+  $('totalPct').textContent = pct + '%';
+};
+
+const setCurrentProgress = (loaded, speed) => {
+  const mb = (loaded / 1024 / 1024).toFixed(1);
+  const pct = Math.min(100, Math.round(loaded / TARGET_BYTES * 100));
+  $('currentBar').style.width = pct + '%';
+  $('currentBar').setAttribute('aria-valuenow', pct);
+  $('currentMB').textContent = `${mb} МБ из 100 МБ`;
+  $('currentSpeed').textContent = speed !== null ? `${speed.toFixed(1)} Мбит/с` : '— Мбит/с';
+};
+
+const roundTo = (val, step) => Math.round(val / step) * step;
+
+const calcMode = values => {
+  const freq = {};
+  for (const v of values) {
+    const key = roundTo(v, ROUND_TO);
+    freq[key] = (freq[key] || 0) + 1;
+  }
+  let max = 0, mode = null;
+  for (const [k, c] of Object.entries(freq)) {
+    if (c > max) { max = c; mode = Number(k); }
+  }
+  return mode;
+};
+
+const measureOnce = async index => {
+  $('currentLabel').textContent = `Текущий замер — ${index} из ${TOTAL}`;
+  setCurrentProgress(0, null);
+
+  const res = await fetch(SERVER_URL + '?t=' + Date.now());
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+
+  const reader = res.body.getReader();
+  let loaded = 0;
+  const start = performance.now();
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    loaded += value.byteLength;
+    const elapsed = (performance.now() - start) / 1000;
+    const speed = elapsed > 0.2 ? (loaded * 8) / elapsed / 1e6 : null;
+    setCurrentProgress(loaded, speed);
+    if (loaded >= TARGET_BYTES) {
+      reader.cancel();
+      break;
+    }
+  }
+
+  const elapsed = (performance.now() - start) / 1000;
+  return (loaded * 8) / elapsed / 1e6;
+};
+
+const addRow = (index, speed, error) => {
+  const row = document.createElement('div');
+  row.className = 'm-row';
+  row.setAttribute('role', 'listitem');
+  const val = error
+    ? `<span class="m-value" style="color:var(--muted)">Ошибка</span>`
+    : `<span class="m-value">${speed.toFixed(1)} Мбит/с</span>`;
+  row.innerHTML = `<span class="m-label">Замер ${index}</span>${val}`;
+  $('measurementsList').appendChild(row);
+};
+
+const run = async () => {
+  $('startBtn').disabled = true;
+  $('measurementsList').innerHTML = '';
+  $('resultsCard').hidden = true;
+  $('progressCard').hidden = true;
+  $('measurementsCard').hidden = true;
+  $('statusCard').hidden = false;
+
+  setStatus('Проверяем доступность сервера...', '');
+  announce('Проверяем доступность сервера Selectel.');
+
+  try {
+    const probe = await fetch(SERVER_URL + '?t=' + Date.now());
+    if (!probe.ok) throw new Error('HTTP ' + probe.status);
+    // читаем немного чтобы убедиться что данные идут
+    const reader = probe.body.getReader();
+    let got = 0;
+    while (got < 256 * 1024) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      got += value.byteLength;
+    }
+    reader.cancel();
+    setStatus('Сервер доступен. Данные идут. Начинаем измерения.', 'ok');
+    announce('Сервер доступен. Начинаем измерения.');
+  } catch (e) {
+    setStatus(`Сервер недоступен: ${e.message}. CORS заблокирован или нет соединения.`, 'err');
+    announce(`Сервер недоступен: ${e.message}`);
+    $('startBtn').disabled = false;
+    $('startBtn').textContent = 'Попробовать снова';
+    return;
+  }
+
+  $('progressCard').hidden = false;
+  $('measurementsCard').hidden = false;
+  setTotalProgress(0);
+
+  const speeds = [];
+
+  for (let i = 1; i <= TOTAL; i++) {
+    announce(`Выполняется замер ${i} из ${TOTAL}`);
+    try {
+      const speed = await measureOnce(i);
+      speeds.push(speed);
+      addRow(i, speed, false);
+      setTotalProgress(i);
+      announce(`Замер ${i} завершён: ${speed.toFixed(1)} мегабит в секунду`);
+    } catch (e) {
+      speeds.push(0);
+      addRow(i, 0, true);
+      setTotalProgress(i);
+      announce(`Замер ${i} не удался: ${e.message}`);
+    }
+  }
+
+  const valid = speeds.filter(s => s > 0);
+  if (valid.length) {
+    const mode = calcMode(valid);
+    const avg = valid.reduce((a, b) => a + b, 0) / valid.length;
+    $('resultMode').textContent = mode.toFixed(1);
+    $('resultAvg').textContent = avg.toFixed(1);
+    $('resultsCard').hidden = false;
+    announce(`Тест завершён. Модальная скорость: ${mode.toFixed(1)} мегабит в секунду. Средняя: ${avg.toFixed(1)} мегабит в секунду.`);
+  } else {
+    setStatus('Все замеры завершились с ошибкой. Проверьте соединение.', 'err');
+    announce('Все замеры завершились с ошибкой.');
+  }
+
+  $('startBtn').disabled = false;
+  $('startBtn').textContent = 'Измерить снова';
+};
+
+$('startBtn').addEventListener('click', run);
+</script>
+</body>
+</html>
