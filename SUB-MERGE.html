@@ -1,0 +1,2018 @@
+<!DOCTYPE html>
+<html lang="ru" color-scheme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SUB MERGE — Объединитель подписок</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+@layer reset, base, layout, components, utilities;
+
+@layer reset {
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :where(button, a, input, select, textarea) { touch-action: manipulation; }
+  img, svg { display: block; max-inline-size: 100%; }
+  button { cursor: pointer; font: inherit; }
+}
+
+@layer base {
+  @property --scan-pos {
+    syntax: '<percentage>';
+    inherits: false;
+    initial-value: -10%;
+  }
+  @property --glow-opacity {
+    syntax: '<number>';
+    inherits: false;
+    initial-value: 0;
+  }
+
+  :root {
+    --bg: oklch(8% .01 264);
+    --surface: oklch(11% .015 264);
+    --surface-2: oklch(14% .018 264);
+    --border: oklch(20% .02 264);
+    --border-hi: oklch(28% .03 264);
+    --accent: oklch(75% .22 152);
+    --accent-2: oklch(65% .18 152);
+    --accent-dim: oklch(75% .22 152 / .08);
+    --accent-glow: oklch(75% .22 152 / .25);
+    --warn: oklch(78% .17 75);
+    --warn-dim: oklch(78% .17 75 / .1);
+    --err: oklch(62% .22 25);
+    --err-dim: oklch(62% .22 25 / .1);
+    --text: oklch(88% .01 264);
+    --text-2: oklch(60% .02 264);
+    --text-3: oklch(38% .02 264);
+    --mono: 'Share Tech Mono', monospace;
+    --sans: 'Syne', sans-serif;
+    --radius: 4px;
+    --radius-lg: 8px;
+    --tab-h: 64px;
+    --dur-fast: 120ms;
+    --dur-mid: 220ms;
+    --dur-slow: 400ms;
+  }
+
+  html {
+    block-size: 100%;
+    scroll-behavior: smooth;
+    scrollbar-gutter: stable;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.6;
+    min-block-size: 100dvh;
+    overflow-x: clip;
+    -webkit-tap-highlight-color: transparent;
+    background-image:
+      radial-gradient(ellipse 80% 40% at 50% -10%, oklch(75% .22 152 / .06), transparent),
+      repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        oklch(75% .22 152 / .012) 2px,
+        oklch(75% .22 152 / .012) 3px
+      );
+    background-attachment: fixed;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: var(--radius);
+  }
+
+  .sr-only {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+}
+
+@layer layout {
+  .app {
+    display: flex;
+    flex-direction: column;
+    min-block-size: 100dvh;
+  }
+
+  main {
+    flex: 1;
+    padding-block: 28px calc(var(--tab-h) + 24px);
+    padding-inline: 16px;
+    max-inline-size: 640px;
+    margin-inline: auto;
+    inline-size: 100%;
+  }
+
+  .screen { display: none; }
+  .screen.active { display: block; }
+
+  nav.tab-bar {
+    position: fixed;
+    inset-block-end: 0;
+    inset-inline: 0;
+    block-size: var(--tab-h);
+    background: var(--surface);
+    border-block-start: 1px solid var(--border);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    z-index: 200;
+    backdrop-filter: blur(12px);
+  }
+}
+
+@layer components {
+  .app-header {
+    margin-block-end: 28px;
+    position: relative;
+  }
+
+  .app-header::before {
+    content: '';
+    position: absolute;
+    inset-block-start: -28px;
+    inset-inline: -16px;
+    block-size: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    opacity: .4;
+  }
+
+  .app-title {
+    font-family: var(--sans);
+    font-size: clamp(20px, 5vw, 26px);
+    font-weight: 800;
+    color: var(--accent);
+    letter-spacing: -.01em;
+    line-height: 1.1;
+    margin-block-end: 4px;
+  }
+
+  .app-subtitle {
+    font-size: 11px;
+    color: var(--text-3);
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    margin-block-end: 14px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color var(--dur-fast);
+
+    &.card--accent { border-color: oklch(75% .22 152 / .35); }
+    &.card--warn { border-color: oklch(78% .17 75 / .35); }
+    &.card--err { border-color: oklch(62% .22 25 / .35); }
+    &.card--scanning {
+      border-color: oklch(75% .22 152 / .4);
+      &::after {
+        content: '';
+        position: absolute;
+        inset-block-start: var(--scan-pos);
+        inset-inline: 0;
+        block-size: 40%;
+        background: linear-gradient(180deg, transparent, var(--accent-glow), transparent);
+        pointer-events: none;
+        animation: scan 2.4s ease-in-out infinite;
+      }
+    }
+  }
+
+  @keyframes scan {
+    0% { --scan-pos: -40%; }
+    100% { --scan-pos: 140%; }
+  }
+
+  .card-label {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-3);
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    margin-block-end: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    &::before {
+      content: '';
+      display: block;
+      inline-size: 16px;
+      block-size: 1px;
+      background: var(--text-3);
+    }
+  }
+
+  .drop-zone {
+    border: 2px dashed var(--border-hi);
+    border-radius: var(--radius-lg);
+    padding: 32px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color var(--dur-fast), background var(--dur-fast);
+    position: relative;
+    margin-block-end: 12px;
+
+    &:hover, &.drag-over {
+      border-color: var(--accent);
+      background: var(--accent-dim);
+    }
+
+    &.has-file {
+      border-color: var(--accent);
+      border-style: solid;
+      background: var(--accent-dim);
+    }
+
+    input[type=file] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      inline-size: 100%;
+      block-size: 100%;
+      cursor: pointer;
+    }
+  }
+
+  .drop-icon {
+    font-size: 28px;
+    line-height: 1;
+    margin-block-end: 10px;
+    color: var(--text-3);
+    transition: color var(--dur-fast);
+
+    .drop-zone:hover &, .drop-zone.drag-over &, .drop-zone.has-file & {
+      color: var(--accent);
+    }
+  }
+
+  .drop-text {
+    font-size: 12px;
+    color: var(--text-2);
+    margin-block-end: 4px;
+  }
+
+  .drop-hint {
+    font-size: 10px;
+    color: var(--text-3);
+    letter-spacing: .04em;
+  }
+
+  .file-info {
+    font-size: 11px;
+    padding: 8px 12px;
+    border-radius: var(--radius);
+    background: var(--accent-dim);
+    color: var(--accent);
+    border: 1px solid oklch(75% .22 152 / .25);
+    display: none;
+    margin-block-end: 12px;
+
+    &.visible { display: block; }
+    &.error { background: var(--err-dim); color: var(--err); border-color: oklch(62% .22 25 / .25); }
+  }
+
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 0;
+  }
+
+  .toggle {
+    position: relative;
+    inline-size: 38px;
+    block-size: 22px;
+    flex-shrink: 0;
+
+    input { opacity: 0; position: absolute; inset: 0; inline-size: 0; block-size: 0; }
+
+    &-track {
+      position: absolute;
+      inset: 0;
+      background: var(--border-hi);
+      border-radius: 22px;
+      cursor: pointer;
+      transition: background var(--dur-fast);
+
+      &::after {
+        content: '';
+        position: absolute;
+        inset-block-start: 3px;
+        inset-inline-start: 3px;
+        inline-size: 16px;
+        block-size: 16px;
+        background: var(--text-2);
+        border-radius: 50%;
+        transition: inset-inline-start var(--dur-fast), background var(--dur-fast);
+      }
+    }
+
+    input:checked + .toggle-track { background: var(--accent-2); }
+    input:checked + .toggle-track::after { inset-inline-start: 19px; background: #fff; }
+    input:focus-visible + .toggle-track { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 22px; }
+  }
+
+  .toggle-text {
+    font-size: 12px;
+    color: var(--text-2);
+    cursor: pointer;
+  }
+
+  .btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    inline-size: 100%;
+    min-block-size: 48px;
+    padding-inline: 20px;
+    background: var(--accent);
+    color: oklch(10% .01 264);
+    border: none;
+    border-radius: var(--radius);
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    transition: opacity var(--dur-fast), transform var(--dur-fast);
+    margin-block-end: 10px;
+    position: relative;
+    overflow: hidden;
+
+    &::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, oklch(100% 0 0 / .15), transparent 50%);
+      pointer-events: none;
+    }
+
+    &:not(:disabled):active { transform: scale(.98); opacity: .85; }
+    &:disabled { opacity: .28; cursor: not-allowed; }
+
+    &--secondary {
+      background: transparent;
+      color: var(--accent);
+      border: 1px solid oklch(75% .22 152 / .4);
+      &:not(:disabled):hover { background: var(--accent-dim); }
+    }
+
+    &--warn {
+      background: var(--warn);
+      color: oklch(10% .01 264);
+    }
+
+    &--danger {
+      background: var(--err);
+      color: #fff;
+    }
+  }
+
+  .progress-header {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: var(--text-3);
+    letter-spacing: .04em;
+    margin-block-end: 6px;
+  }
+
+  .progress-track {
+    block-size: 3px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-block-end: 10px;
+  }
+
+  .progress-bar {
+    block-size: 100%;
+    border-radius: 3px;
+    background: var(--accent);
+    inline-size: 0%;
+    transition: inline-size .3s;
+    box-shadow: 0 0 8px var(--accent-glow);
+
+    &--warn { background: var(--warn); box-shadow: 0 0 8px oklch(78% .17 75 / .4); }
+  }
+
+  .current-url {
+    font-size: 10px;
+    color: var(--text-3);
+    word-break: break-all;
+    min-block-size: 14px;
+    margin-block-end: 8px;
+    font-family: var(--mono);
+  }
+
+  .log {
+    max-block-size: 180px;
+    overflow-y: auto;
+    font-size: 10px;
+    line-height: 1.9;
+    margin-block-start: 8px;
+    border-block-start: 1px solid var(--border);
+    padding-block-start: 8px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-hi) transparent;
+  }
+
+  .log-line {
+    padding-block: 1px;
+    font-family: var(--mono);
+    &--ok { color: var(--accent); }
+    &--err { color: var(--err); }
+  }
+
+  .stat-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-block-end: 16px;
+  }
+
+  .stat {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 10px;
+    text-align: center;
+
+    &--ok .stat-val { color: var(--accent); }
+    &--err .stat-val { color: var(--err); }
+    &--warn .stat-val { color: var(--warn); }
+    &--dim .stat-val { color: var(--text-2); }
+  }
+
+  .stat-val {
+    font-family: var(--sans);
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--accent);
+    display: block;
+    line-height: 1.1;
+    margin-block-end: 4px;
+  }
+
+  .stat-lbl {
+    font-size: 9px;
+    color: var(--text-3);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+  }
+
+  .check-counters {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 6px;
+    margin-block-end: 8px;
+  }
+
+  .mini-stat {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 6px;
+    text-align: center;
+
+    &--ok .mini-val { color: var(--accent); }
+    &--err .mini-val { color: var(--err); }
+    &--dim .mini-val { color: var(--text-2); }
+  }
+
+  .mini-val {
+    display: block;
+    font-family: var(--sans);
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1.1;
+    margin-block-end: 3px;
+  }
+
+  .mini-lbl {
+    font-size: 9px;
+    color: var(--text-3);
+    letter-spacing: .08em;
+    text-transform: uppercase;
+  }
+
+  .status-line {
+    font-size: 11px;
+    color: var(--text-2);
+    line-height: 1.6;
+    margin-block-end: 14px;
+
+    &.ready { color: var(--accent); }
+  }
+
+  [role=tab] {
+    position: relative;
+    background: transparent;
+    border: none;
+    color: var(--text-3);
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    padding-block: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    transition: color var(--dur-fast), background var(--dur-fast);
+    -webkit-tap-highlight-color: transparent;
+
+    &:first-child { border-inline-end: 1px solid var(--border); }
+
+    &[aria-selected=true] {
+      color: var(--accent);
+      background: var(--accent-dim);
+
+      .tab-indicator {
+        opacity: 1;
+        transform: scaleX(1);
+      }
+    }
+
+    &:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  }
+
+  .tab-icon {
+    font-size: 16px;
+    line-height: 1;
+  }
+
+  .tab-indicator {
+    position: absolute;
+    inset-block-start: 0;
+    inset-inline: 20%;
+    block-size: 2px;
+    background: var(--accent);
+    border-radius: 0 0 2px 2px;
+    opacity: 0;
+    transform: scaleX(0);
+    transition: opacity var(--dur-fast), transform var(--dur-mid);
+    box-shadow: 0 0 8px var(--accent-glow);
+  }
+
+  .tab-dot {
+    position: absolute;
+    inset-block-start: 10px;
+    inset-inline-end: 26%;
+    inline-size: 6px;
+    block-size: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    opacity: 0;
+    transition: opacity .3s;
+    box-shadow: 0 0 6px var(--accent);
+
+    &--warn { background: var(--warn); box-shadow: 0 0 6px var(--warn); }
+  }
+
+  [role=tab].has-data .tab-dot { opacity: 1; }
+  [role=tab].processing .tab-dot {
+    opacity: 1;
+    animation: pulse 1s ease-in-out infinite;
+  }
+  [role=tab].processing-warn .tab-dot { animation: pulse 1s ease-in-out infinite; }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .2; }
+  }
+
+  dialog {
+    background: var(--surface);
+    border: 1px solid var(--border-hi);
+    border-radius: var(--radius-lg);
+    color: var(--text);
+    padding: 28px 24px;
+    inline-size: min(90vw, 360px);
+    box-shadow: 0 24px 60px oklch(0% 0 0 / .6);
+
+    &::backdrop {
+      background: oklch(0% 0 0 / .7);
+      backdrop-filter: blur(4px);
+    }
+  }
+
+  .confirm-title {
+    font-family: var(--sans);
+    font-size: 16px;
+    font-weight: 700;
+    margin-block-end: 8px;
+  }
+
+  .confirm-text {
+    font-size: 12px;
+    color: var(--text-2);
+    margin-block-end: 20px;
+    line-height: 1.7;
+  }
+
+  .confirm-actions { display: flex; flex-direction: column; gap: 8px; }
+
+  #toast {
+    position: fixed;
+    inset-block-end: calc(var(--tab-h) + 16px);
+    inset-inline-start: 50%;
+    transform: translateX(-50%) translateY(10px);
+    background: var(--surface-2);
+    border: 1px solid var(--border-hi);
+    color: var(--text);
+    font-size: 12px;
+    padding: 10px 18px;
+    border-radius: 100px;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--dur-mid), transform var(--dur-mid);
+    z-index: 300;
+    max-inline-size: calc(100vw - 32px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    box-shadow: 0 8px 24px oklch(0% 0 0 / .4);
+
+    &.visible {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+  }
+
+  #action-status:focus { outline: none; }
+}
+
+  .split-summary {
+    font-size: 11px;
+    color: var(--text-2);
+    margin-block-end: 16px;
+    line-height: 1.7;
+
+    strong { color: var(--accent); font-family: var(--sans); font-weight: 700; }
+  }
+
+  .chunk-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .chunk-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    transition: border-color var(--dur-fast), background var(--dur-fast);
+
+    &:hover { border-color: var(--border-hi); }
+    &.chunk-row--done { background: oklch(75% .22 152 / .04); border-color: oklch(75% .22 152 / .3); }
+  }
+
+  .chunk-check {
+    flex-shrink: 0;
+    inline-size: 20px;
+    block-size: 20px;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+
+  .chunk-row--done .chunk-num { color: var(--accent); }
+  .chunk-row--done .chunk-count { color: var(--accent-2); opacity: .8; }
+
+
+  .chunk-info {
+    flex: 1;
+    min-inline-size: 0;
+  }
+
+  .chunk-num {
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+    display: block;
+    line-height: 1.2;
+  }
+
+  .chunk-count {
+    font-size: 10px;
+    color: var(--text-3);
+    letter-spacing: .04em;
+  }
+
+  .btn-copy {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    min-block-size: 36px;
+    background: transparent;
+    color: var(--accent);
+    border: 1px solid oklch(75% .22 152 / .35);
+    border-radius: var(--radius);
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    transition: background var(--dur-fast), color var(--dur-fast), border-color var(--dur-fast);
+    white-space: nowrap;
+    margin-block-end: 0;
+    inline-size: auto;
+
+    &:hover { background: var(--accent-dim); }
+    &:active { transform: scale(.97); }
+
+    &.copied {
+      background: var(--accent-dim);
+      color: var(--accent);
+      border-color: var(--accent);
+    }
+  }
+
+  .accordion {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    margin-block-end: 8px;
+    transition: border-color var(--dur-fast);
+
+    &:has(.accordion-toggle[aria-expanded=true]) { border-color: var(--border-hi); }
+  }
+
+  .accordion-toggle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    inline-size: 100%;
+    min-block-size: 44px;
+    padding: 10px 14px;
+    background: var(--surface);
+    border: none;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    text-align: start;
+    cursor: pointer;
+    transition: background var(--dur-fast);
+    margin-block-end: 0;
+
+    &:hover { background: var(--surface-2); }
+  }
+
+  .accordion-arrow {
+    margin-inline-start: auto;
+    flex-shrink: 0;
+    font-size: 10px;
+    color: var(--text-3);
+    transition: transform var(--dur-mid);
+
+    .accordion-toggle[aria-expanded=true] & { transform: rotate(180deg); }
+  }
+
+  .accordion-label {
+    font-family: var(--sans);
+    font-weight: 700;
+    color: var(--accent);
+  }
+
+  .accordion-meta {
+    font-size: 10px;
+    color: var(--text-3);
+    letter-spacing: .04em;
+  }
+
+  .accordion-body {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows var(--dur-mid);
+    visibility: hidden;
+
+    &.open {
+      grid-template-rows: 1fr;
+      visibility: visible;
+    }
+  }
+
+  .accordion-inner {
+    overflow: hidden;
+    visibility: inherit;
+  }
+
+  .accordion-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    padding: 1px;
+    background: var(--border);
+  }
+
+@layer utilities {
+  .hidden { display: none !important; }
+  .mt-0 { margin-block-end: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    transition-duration: .01ms !important;
+  }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <main id="main-content">
+
+    <div id="screen-collect" class="screen active" role="tabpanel" aria-labelledby="tab-collect" tabindex="0">
+      <header class="app-header">
+        <h1 class="app-title" id="collect-title">SUB MERGE</h1>
+        <p class="app-subtitle">Объединитель VPN-подписок</p>
+      </header>
+
+      <div class="card" id="card-upload">
+        <h2 class="sr-only">Файл подписок</h2>
+        <div class="card-label">01 — Файл подписок</div>
+
+        <div class="drop-zone" id="drop-zone" aria-label="Область загрузки файла. Перетащи .txt файл или нажми для выбора">
+          <input type="file" id="file-input" accept=".txt,text/plain"
+            aria-describedby="file-status" aria-label="Выбери .txt файл со ссылками на подписки">
+          <div class="drop-icon" aria-hidden="true">⬡</div>
+          <p class="drop-text">Перетащи .txt файл или нажми</p>
+          <p class="drop-hint">По одной ссылке на строку</p>
+        </div>
+
+        <div class="file-info" id="file-status" role="status" aria-live="polite" aria-atomic="true"></div>
+      </div>
+
+      <div class="card" id="card-settings">
+        <h2 class="sr-only">Настройки</h2>
+        <div class="card-label">02 — Настройки</div>
+
+        <label class="toggle-row">
+          <span class="toggle">
+            <input type="checkbox" id="use-proxy" checked
+              aria-label="Использовать CORS-прокси как запасной вариант">
+            <div class="toggle-track" aria-hidden="true"></div>
+          </span>
+          <span class="toggle-text">CORS-прокси как fallback</span>
+        </label>
+
+        <label class="toggle-row">
+          <span class="toggle">
+            <input type="checkbox" id="dedup-toggle" checked
+              aria-label="Удалять дублирующиеся профили">
+            <div class="toggle-track" aria-hidden="true"></div>
+          </span>
+          <span class="toggle-text">Дедупликация профилей</span>
+        </label>
+
+        <label class="toggle-row">
+          <span class="toggle">
+            <input type="checkbox" id="split-toggle"
+              aria-label="Режим разбивки: группировать профили по 500 штук для копирования">
+            <div class="toggle-track" aria-hidden="true"></div>
+          </span>
+          <span class="toggle-text">Режим разбивки по 500</span>
+        </label>
+      </div>
+
+      <button class="btn" id="start-btn" disabled
+        aria-label="Начать сбор профилей из всех подписок">
+        ▶ НАЧАТЬ СБОР
+      </button>
+
+      <div class="card card--scanning hidden" id="progress-card">
+        <h2 class="sr-only">Прогресс загрузки</h2>
+        <div class="card-label">Загрузка подписок</div>
+        <div class="progress-header">
+          <span id="prog-text">0 из 0</span>
+          <span id="prog-pct">0%</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-bar" id="prog-bar"
+            role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"
+            aria-label="Прогресс загрузки"></div>
+        </div>
+        <div class="current-url" id="current-url"></div>
+        <div class="log" id="collect-log" role="log" aria-label="Лог загрузки" aria-live="off"></div>
+      </div>
+
+      <div class="card hidden" id="result-card">
+        <h2 class="sr-only">Результат сбора</h2>
+        <div class="card-label">Результат сбора</div>
+        <div class="stat-grid">
+          <div class="stat stat--ok">
+            <span class="stat-val" id="stat-profiles">0</span>
+            <span class="stat-lbl">Профилей</span>
+          </div>
+          <div class="stat stat--dim">
+            <span class="stat-val" id="stat-subs">0</span>
+            <span class="stat-lbl">Подписок</span>
+          </div>
+          <div class="stat stat--ok">
+            <span class="stat-val" id="stat-ok">0</span>
+            <span class="stat-lbl">Успешно</span>
+          </div>
+          <div class="stat stat--err">
+            <span class="stat-val" id="stat-err">0</span>
+            <span class="stat-lbl">Ошибок</span>
+          </div>
+        </div>
+        <button class="btn" id="download-all-btn">⬇ СКАЧАТЬ ВСЕ ПРОФИЛИ</button>
+        <button class="btn btn--secondary mt-0" id="reset-btn" aria-label="Сбросить все данные и начать заново">↺ НАЧАТЬ ЗАНОВО</button>
+      </div>
+
+      <div class="card hidden" id="split-card" aria-label="Режим разбивки по группам">
+        <h2 class="sr-only">Разбивка по 500</h2>
+        <div class="card-label">Разбивка по 500</div>
+        <p class="split-summary" id="split-summary"></p>
+        <div class="chunk-list" id="chunk-list" role="list"></div>
+      </div>
+    </div>
+
+    <div id="screen-check" class="screen" role="tabpanel" aria-labelledby="tab-check" tabindex="0">
+      <header class="app-header">
+        <h1 class="app-title" id="check-title">CHECKER</h1>
+        <p class="app-subtitle">Проверка доступности профилей</p>
+      </header>
+
+      <div class="card" id="check-ready-card">
+        <h2 class="sr-only">Проверка профилей</h2>
+        <div class="card-label">Проверка профилей</div>
+        <p class="status-line" id="check-status">Сначала загрузи профили на вкладке «Сбор»</p>
+        <button class="btn btn--warn" id="check-btn" disabled
+          aria-label="Запустить проверку доступности профилей">
+          ⚡ ПРОВЕРИТЬ ПРОФИЛИ
+        </button>
+      </div>
+
+      <div class="card card--scanning hidden" id="check-progress-card">
+        <h2 class="sr-only">Прогресс проверки</h2>
+        <div class="card-label">Идёт проверка</div>
+        <div class="progress-header">
+          <span id="chk-text">0 из 0</span>
+          <span id="chk-pct">0%</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-bar progress-bar--warn" id="chk-bar"
+            role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"
+            aria-label="Прогресс проверки"></div>
+        </div>
+        <div class="check-counters">
+          <div class="mini-stat mini-stat--ok">
+            <span class="mini-val" id="chk-working">0</span>
+            <span class="mini-lbl">Рабочих</span>
+          </div>
+          <div class="mini-stat mini-stat--err">
+            <span class="mini-val" id="chk-dead">0</span>
+            <span class="mini-lbl">Недоступных</span>
+          </div>
+          <div class="mini-stat mini-stat--dim">
+            <span class="mini-val" id="chk-skip">0</span>
+            <span class="mini-lbl">Пропущено</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card hidden" id="check-result-card">
+        <h2 class="sr-only">Результат проверки</h2>
+        <div class="card-label">Результат проверки</div>
+        <div class="stat-grid">
+          <div class="stat stat--ok">
+            <span class="stat-val" id="cr-working">0</span>
+            <span class="stat-lbl">Рабочих</span>
+          </div>
+          <div class="stat stat--err">
+            <span class="stat-val" id="cr-failed">0</span>
+            <span class="stat-lbl">Недоступных</span>
+          </div>
+        </div>
+        <button class="btn" id="download-working-btn">⬇ СКАЧАТЬ РАБОЧИЕ ПРОФИЛИ</button>
+      </div>
+    </div>
+
+  </main>
+
+  <nav class="tab-bar" role="tablist" aria-label="Разделы приложения">
+    <button role="tab" id="tab-collect" aria-roledescription="вкладка"
+      aria-selected="true" aria-controls="screen-collect" tabindex="0"
+      aria-label="Сбор профилей, 1 из 2">
+      <span class="tab-indicator" aria-hidden="true"></span>
+      <span class="tab-dot" aria-hidden="true"></span>
+      <span class="tab-icon" aria-hidden="true">◈</span>
+      <span aria-hidden="true">Сбор</span>
+    </button>
+    <button role="tab" id="tab-check" aria-roledescription="вкладка"
+      aria-selected="false" aria-controls="screen-check" tabindex="-1"
+      aria-label="Проверка профилей, 2 из 2">
+      <span class="tab-indicator" aria-hidden="true"></span>
+      <span class="tab-dot tab-dot--warn" aria-hidden="true"></span>
+      <span class="tab-icon" aria-hidden="true">◉</span>
+      <span aria-hidden="true">Проверка</span>
+    </button>
+  </nav>
+</div>
+
+<dialog id="confirm-dialog" aria-labelledby="confirm-dlg-title">
+  <h2 class="confirm-title" id="confirm-dlg-title"></h2>
+  <p class="confirm-text" id="confirm-dlg-text"></p>
+  <div class="confirm-actions">
+    <button class="btn btn--danger" id="confirm-yes"></button>
+    <button class="btn btn--secondary mt-0" id="confirm-no">Отмена</button>
+  </div>
+</dialog>
+
+<div id="toast" role="status" aria-live="polite"></div>
+<div id="aria-live-polite" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+<div id="aria-live-assertive" class="sr-only" aria-live="assertive" aria-atomic="true"></div>
+<div id="action-status" tabindex="-1"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  const PROXIES = [
+    { name: 'corsproxy.io', make: url => `https://corsproxy.io/?url=${encodeURIComponent(url)}` },
+    { name: 'allorigins',   make: url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}` },
+    { name: 'codetabs',     make: url => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}` },
+    { name: 'thingproxy',   make: url => `https://thingproxy.freeboard.io/fetch/${url}` },
+  ];
+  const CHECK_CONCURRENCY = 60;
+  const CHECK_TIMEOUT_MS  = 4000;
+  const FETCH_TIMEOUT_MS  = 30000;
+  const TOAST_DUR         = 3000;
+  const MAX_LOG_LINES     = 200;
+  const IDB_NAME          = 'submerge';
+  const IDB_VER           = 1;
+  const IDB_STORE_PROFILES = 'profiles';
+  const IDB_STORE_META     = 'meta';
+
+  const CONFIG_PREFIXES = [
+    'vless://', 'vmess://', 'trojan://',
+    'ss://', 'ssr://',
+    'hysteria://', 'hysteria2://', 'hy2://',
+    'tuic://', 'wireguard://', 'wg://',
+    'socks://', 'socks5://'
+  ];
+
+  const eh = s => { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; };
+
+  class IDBStorage {
+    #db = null;
+
+    async open() {
+      if (this.#db) return;
+      this.#db = await new Promise((resolve, reject) => {
+        const req = indexedDB.open(IDB_NAME, IDB_VER);
+        req.onupgradeneeded = e => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains(IDB_STORE_PROFILES))
+            db.createObjectStore(IDB_STORE_PROFILES, { keyPath: 'idx' });
+          if (!db.objectStoreNames.contains(IDB_STORE_META))
+            db.createObjectStore(IDB_STORE_META);
+        };
+        req.onsuccess = e => resolve(e.target.result);
+        req.onerror   = e => reject(e.target.error);
+      });
+    }
+
+    async saveProfiles(profiles) {
+      await this.open();
+      return new Promise((resolve, reject) => {
+        const tx    = this.#db.transaction(IDB_STORE_PROFILES, 'readwrite');
+        const store = tx.objectStore(IDB_STORE_PROFILES);
+        store.clear();
+        profiles.forEach((line, idx) => store.put({ idx, line }));
+        tx.oncomplete = () => resolve();
+        tx.onerror    = e => reject(e.target.error);
+      });
+    }
+
+    async loadProfiles() {
+      await this.open();
+      return new Promise((resolve, reject) => {
+        const tx    = this.#db.transaction(IDB_STORE_PROFILES, 'readonly');
+        const store = tx.objectStore(IDB_STORE_PROFILES);
+        const req   = store.getAll();
+        req.onsuccess = e => resolve(e.target.result.sort((a, b) => a.idx - b.idx).map(r => r.line));
+        req.onerror   = e => reject(e.target.error);
+      });
+    }
+
+    async saveMeta(key, value) {
+      await this.open();
+      return new Promise((resolve, reject) => {
+        const tx    = this.#db.transaction(IDB_STORE_META, 'readwrite');
+        const store = tx.objectStore(IDB_STORE_META);
+        store.put(value, key);
+        tx.oncomplete = () => resolve();
+        tx.onerror    = e => reject(e.target.error);
+      });
+    }
+
+    async loadMeta(key) {
+      await this.open();
+      return new Promise((resolve, reject) => {
+        const tx    = this.#db.transaction(IDB_STORE_META, 'readonly');
+        const store = tx.objectStore(IDB_STORE_META);
+        const req   = store.get(key);
+        req.onsuccess = e => resolve(e.target.result ?? null);
+        req.onerror   = e => reject(e.target.error);
+      });
+    }
+
+    async clearAll() {
+      await this.open();
+      return new Promise((resolve, reject) => {
+        const tx = this.#db.transaction([IDB_STORE_PROFILES, IDB_STORE_META], 'readwrite');
+        tx.objectStore(IDB_STORE_PROFILES).clear();
+        tx.objectStore(IDB_STORE_META).clear();
+        tx.oncomplete = () => resolve();
+        tx.onerror    = e => reject(e.target.error);
+      });
+    }
+  }
+  const idb = new IDBStorage();
+
+  class EventBus extends EventTarget {
+    emit(name, detail = {}) { this.dispatchEvent(new CustomEvent(name, { detail })); }
+    on(name, fn) { this.addEventListener(name, fn); }
+  }
+  const bus = new EventBus();
+
+  class Store {
+    #urls = [];
+    #allProfiles = [];
+    #workingProfiles = [];
+    #isCollecting = false;
+    #isChecking = false;
+
+    get urls() { return this.#urls; }
+    get allProfiles() { return this.#allProfiles; }
+    get workingProfiles() { return this.#workingProfiles; }
+    get isCollecting() { return this.#isCollecting; }
+    get isChecking() { return this.#isChecking; }
+
+    setUrls(v) { this.#urls = v; }
+    setAllProfiles(v) {
+      this.#allProfiles = v;
+      idb.saveProfiles(v).catch(() => bus.emit('app:toast', { msg: 'Ошибка сохранения профилей' }));
+    }
+    setWorkingProfiles(v) { this.#workingProfiles = v; }
+    setCollecting(v) { this.#isCollecting = v; }
+    setChecking(v) { this.#isChecking = v; }
+
+    async loadFromStorage() {
+      try {
+        const profiles = await idb.loadProfiles();
+        if (!Array.isArray(profiles) || profiles.length === 0) return false;
+        this.#allProfiles = profiles;
+        return true;
+      } catch { return false; }
+    }
+
+    async clearStorage() {
+      try { await idb.clearAll(); } catch {}
+    }
+
+    reset() {
+      this.#urls = [];
+      this.#allProfiles = [];
+      this.#workingProfiles = [];
+      this.#isCollecting = false;
+      this.#isChecking = false;
+    }
+  }
+  const store = new Store();
+
+  class ToastBlock {
+    #el = document.getElementById('toast');
+    #timer = null;
+    constructor() { bus.on('app:toast', e => this.#show(e.detail.msg, e.detail.dur)); }
+    #show(msg, dur = TOAST_DUR) {
+      this.#el.textContent = msg;
+      this.#el.classList.add('visible');
+      clearTimeout(this.#timer);
+      this.#timer = setTimeout(() => {
+        this.#el.classList.remove('visible');
+        this.#el.textContent = '';
+      }, dur);
+    }
+  }
+
+  class AnnounceBlock {
+    #polite = document.getElementById('aria-live-polite');
+    #assertive = document.getElementById('aria-live-assertive');
+    constructor() {
+      bus.on('app:announce-polite', e => this.#say(this.#polite, e.detail.msg));
+      bus.on('app:announce-assertive', e => this.#say(this.#assertive, e.detail.msg));
+      bus.on('app:focus-status', e => this.#focusStatus(e.detail.msg));
+    }
+    #say(el, msg) {
+      el.textContent = '';
+      setTimeout(() => { el.textContent = msg; }, 100);
+      setTimeout(() => { el.textContent = ''; }, 4500);
+    }
+    #focusStatus(msg) {
+      const el = document.getElementById('action-status');
+      el.setAttribute('aria-label', msg);
+      setTimeout(() => el.focus(), 200);
+      setTimeout(() => el.removeAttribute('aria-label'), 4500);
+    }
+  }
+
+  class ConfirmBlock {
+    #dlg = document.getElementById('confirm-dialog');
+    #cb = null;
+    #returnId = null;
+    constructor() {
+      document.getElementById('confirm-yes').addEventListener('click', () => this.#resolve(true));
+      document.getElementById('confirm-no').addEventListener('click', () => this.#resolve(false));
+      this.#dlg.addEventListener('cancel', e => { e.preventDefault(); this.#resolve(false); });
+      bus.on('app:confirm', e => this.#show(e.detail));
+    }
+    #show({ title, text, yesText, onYes, returnFocusId }) {
+      document.getElementById('confirm-dlg-title').textContent = title;
+      document.getElementById('confirm-dlg-text').textContent = text;
+      document.getElementById('confirm-yes').textContent = yesText;
+      this.#cb = onYes;
+      this.#returnId = returnFocusId;
+      document.getElementById('main-content').inert = true;
+      this.#dlg.showModal();
+      setTimeout(() => document.getElementById('confirm-no').focus(), 50);
+    }
+    #resolve(yes) {
+      this.#dlg.close();
+      document.getElementById('main-content').inert = false;
+      if (yes) this.#cb?.();
+      if (this.#returnId) document.getElementById(this.#returnId)?.focus();
+      this.#cb = null;
+      this.#returnId = null;
+    }
+  }
+
+  class NavigationBlock {
+    #screens = { collect: 'screen-collect', check: 'screen-check' };
+    #tabs = { collect: 'tab-collect', check: 'tab-check' };
+    constructor() {
+      bus.on('app:navigate', e => this.#go(e.detail));
+      document.querySelectorAll('[role=tab]').forEach(btn => {
+        btn.addEventListener('click', () => this.#go({ screen: btn.dataset.screen }));
+        btn.addEventListener('keydown', e => this.#tabKey(e, btn));
+      });
+      document.querySelectorAll('[role=tab]').forEach(b => b.dataset.screen = b.id.replace('tab-', ''));
+    }
+    #go({ screen, focus }) {
+      const allTabs = document.querySelectorAll('[role=tab]');
+      const allScreens = document.querySelectorAll('.screen');
+      allTabs.forEach(t => {
+        const active = this.#tabs[screen] === t.id;
+        t.setAttribute('aria-selected', active);
+        t.tabIndex = active ? 0 : -1;
+      });
+      allScreens.forEach(s => s.classList.toggle('active', s.id === this.#screens[screen]));
+      if (focus) {
+        setTimeout(() => document.getElementById(focus)?.focus(), 50);
+      }
+      if (screen === 'check') bus.emit('app:check-screen-entered');
+    }
+    #tabKey(e, btn) {
+      const tabs = [...document.querySelectorAll('[role=tab]')];
+      const idx  = tabs.indexOf(btn);
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        tabs[(idx + 1) % tabs.length].click();
+        tabs[(idx + 1) % tabs.length].focus();
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        tabs[(idx - 1 + tabs.length) % tabs.length].click();
+        tabs[(idx - 1 + tabs.length) % tabs.length].focus();
+      }
+    }
+  }
+
+  class WakeLockBlock {
+    #lock = null;
+    constructor() {
+      bus.on('app:wake-lock-acquire', () => this.#acquire());
+      bus.on('app:wake-lock-release', () => this.#release());
+      document.addEventListener('visibilitychange', async () => {
+        if (document.visibilityState === 'visible' && (store.isCollecting || store.isChecking)) {
+          await this.#acquire();
+        }
+      });
+    }
+    async #acquire() {
+      if (!('wakeLock' in navigator)) return;
+      try { this.#lock = await navigator.wakeLock.request('screen'); } catch {}
+    }
+    #release() {
+      if (this.#lock) { this.#lock.release().catch(() => {}); this.#lock = null; }
+    }
+  }
+
+  class ExitGuardBlock {
+    constructor() {
+      history.pushState({ app: true }, '', location.href);
+      window.addEventListener('popstate', () => {
+        if (!store.isCollecting && !store.isChecking) return;
+        history.pushState({ app: true }, '', location.href);
+        const leave = confirm('Идёт обработка данных. Прервать и выйти?');
+        if (leave) {
+          store.setCollecting(false);
+          store.setChecking(false);
+          bus.emit('app:wake-lock-release');
+          history.go(-2);
+        }
+      });
+      window.addEventListener('beforeunload', e => {
+        if (store.isCollecting || store.isChecking) { e.preventDefault(); e.returnValue = ''; }
+      });
+    }
+  }
+
+  class CollectBlock {
+    #fileInput = document.getElementById('file-input');
+    #fileStatus = document.getElementById('file-status');
+    #dropZone   = document.getElementById('drop-zone');
+    #startBtn   = document.getElementById('start-btn');
+    #progressCard = document.getElementById('progress-card');
+    #progBar    = document.getElementById('prog-bar');
+    #progText   = document.getElementById('prog-text');
+    #progPct    = document.getElementById('prog-pct');
+    #currentUrl = document.getElementById('current-url');
+    #logEl      = document.getElementById('collect-log');
+    #resultCard = document.getElementById('result-card');
+    #resetBtn   = document.getElementById('reset-btn');
+    #dlBtn      = document.getElementById('download-all-btn');
+    #tabCollect = document.getElementById('tab-collect');
+    #logCount   = 0;
+
+    constructor() {
+      this.#fileInput.addEventListener('change', () => this.#onFile(this.#fileInput.files[0]));
+      this.#dropZone.addEventListener('dragover', e => { e.preventDefault(); this.#dropZone.classList.add('drag-over'); });
+      this.#dropZone.addEventListener('dragleave', () => this.#dropZone.classList.remove('drag-over'));
+      this.#dropZone.addEventListener('drop', e => {
+        e.preventDefault();
+        this.#dropZone.classList.remove('drag-over');
+        const f = e.dataTransfer.files[0];
+        if (f) this.#onFile(f);
+      });
+      this.#startBtn.addEventListener('click', () => this.#start());
+      this.#dlBtn.addEventListener('click', () => downloadFile(store.allProfiles, `profiles_${today()}.txt`));
+      this.#resetBtn.addEventListener('click', () => {
+        bus.emit('app:confirm', {
+          title: 'Начать заново?',
+          text: 'Все собранные профили и галочки будут удалены.',
+          yesText: 'Сбросить',
+          returnFocusId: 'reset-btn',
+          onYes: async () => {
+            await store.clearStorage();
+            this.#reset();
+            bus.emit('app:toast', { msg: 'Данные сброшены' });
+          }
+        });
+      });
+    }
+
+    async restoreFromStorage() {
+      if (!await store.loadFromStorage()) return;
+      const profiles = store.allProfiles;
+      document.getElementById('stat-profiles').textContent = profiles.length.toLocaleString();
+      document.getElementById('stat-subs').textContent     = '—';
+      document.getElementById('stat-ok').textContent       = '—';
+      document.getElementById('stat-err').textContent      = '—';
+      this.#resultCard.classList.remove('hidden');
+      this.#tabCollect.classList.add('has-data');
+      bus.emit('app:collect-done');
+      bus.emit('app:announce-polite', { msg: `Восстановлено ${profiles.length} профилей из памяти браузера.` });
+    }
+
+    #onFile(file) {
+      if (!file) return;
+      if (!file.name.endsWith('.txt') && file.type !== 'text/plain') {
+        this.#showFileStatus('Нужен .txt файл со ссылками.', true);
+        this.#startBtn.disabled = true;
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = e => {
+        const lines = e.target.result
+          .split(/\r?\n/)
+          .map(l => l.trim())
+          .filter(l => l.startsWith('http'));
+        store.setUrls(lines);
+        if (lines.length > 0) {
+          this.#showFileStatus(`${lines.length.toLocaleString()} ссылок — «${file.name}»`, false);
+          this.#startBtn.disabled = false;
+          this.#dropZone.classList.add('has-file');
+          bus.emit('app:announce-polite', { msg: `Файл загружен. Найдено ${lines.length} ссылок.` });
+        } else {
+          this.#showFileStatus('Не найдено ни одной http-ссылки. Проверь файл.', true);
+          this.#startBtn.disabled = true;
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    #showFileStatus(msg, isErr) {
+      this.#fileStatus.textContent = msg;
+      this.#fileStatus.classList.toggle('error', isErr);
+      this.#fileStatus.classList.add('visible');
+    }
+
+    async #start() {
+      store.setAllProfiles([]);
+      store.setCollecting(true);
+      this.#logCount = 0;
+      this.#logEl.innerHTML = '';
+      this.#startBtn.disabled = true;
+      this.#progressCard.classList.remove('hidden');
+      this.#resultCard.classList.add('hidden');
+      this.#setProgress(0, store.urls.length);
+      this.#tabCollect.classList.add('processing');
+      bus.emit('app:wake-lock-acquire');
+
+      const useProxy = document.getElementById('use-proxy').checked;
+      const dedup    = document.getElementById('dedup-toggle').checked;
+      const urls     = store.urls;
+      const all      = [];
+      let okCount = 0, errCount = 0;
+
+      for (let i = 0; i < urls.length; i++) {
+        if (!store.isCollecting) break;
+        const raw = urls[i];
+        const url = normalizeUrl(raw);
+        this.#currentUrl.textContent = `→ ${shortUrl(url)}`;
+        this.#setProgress(i, urls.length);
+        try {
+          const { text, via } = await fetchWithFallback(url, useProxy);
+          const profs = parseProfiles(text);
+          all.push(...profs);
+          okCount++;
+          const viaStr = via ? ` [→${via}]` : '';
+          this.#addLog(`✓ [${i + 1}] ${profs.length} профилей${viaStr} — ${shortUrl(url)}`, 'ok');
+        } catch (err) {
+          errCount++;
+          this.#addLog(`✗ [${i + 1}] ${err.message} — ${shortUrl(raw)}`, 'err');
+        }
+      }
+
+      const profiles = dedup ? [...new Set(all)] : all;
+      store.setAllProfiles(profiles);
+      store.setCollecting(false);
+      this.#setProgress(urls.length, urls.length);
+      this.#currentUrl.textContent = '';
+      this.#tabCollect.classList.remove('processing');
+      this.#progressCard.classList.remove('card--scanning');
+
+      document.getElementById('stat-profiles').textContent = profiles.length.toLocaleString();
+      document.getElementById('stat-subs').textContent     = urls.length;
+      document.getElementById('stat-ok').textContent       = okCount;
+      document.getElementById('stat-err').textContent      = errCount;
+      this.#resultCard.classList.remove('hidden');
+
+      if (!store.isChecking) bus.emit('app:wake-lock-release');
+      bus.emit('app:collect-done');
+      bus.emit('app:announce-assertive', { msg: `Сбор завершён. Собрано ${profiles.length} профилей из ${urls.length} подписок.` });
+      this.#dlBtn.focus();
+    }
+
+    #setProgress(done, total) {
+      const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+      this.#progBar.style.inlineSize = pct + '%';
+      this.#progBar.setAttribute('aria-valuenow', pct);
+      this.#progText.textContent = `${done} из ${total}`;
+      this.#progPct.textContent  = pct + '%';
+    }
+
+    #addLog(msg, type) {
+      if (this.#logCount >= MAX_LOG_LINES) {
+        const first = this.#logEl.querySelector('.log-line');
+        if (first) this.#logEl.removeChild(first);
+      }
+      const div = document.createElement('div');
+      div.className = `log-line log-line--${type}`;
+      div.textContent = msg;
+      this.#logEl.appendChild(div);
+      this.#logEl.scrollTop = this.#logEl.scrollHeight;
+      this.#logCount++;
+    }
+
+    #reset() {
+      store.reset();
+      this.#fileInput.value  = '';
+      this.#dropZone.classList.remove('has-file');
+      this.#fileStatus.classList.remove('visible', 'error');
+      this.#fileStatus.textContent = '';
+      this.#logEl.innerHTML  = '';
+      this.#progressCard.classList.add('hidden');
+      this.#progressCard.classList.add('card--scanning');
+      this.#resultCard.classList.add('hidden');
+      this.#startBtn.disabled = true;
+      bus.emit('app:reset');
+      bus.emit('app:toast', { msg: 'Сброшено' });
+      this.#fileInput.focus();
+    }
+  }
+
+  class CheckBlock {
+    #checkBtn     = document.getElementById('check-btn');
+    #statusLine   = document.getElementById('check-status');
+    #progressCard = document.getElementById('check-progress-card');
+    #chkBar       = document.getElementById('chk-bar');
+    #chkText      = document.getElementById('chk-text');
+    #chkPct       = document.getElementById('chk-pct');
+    #chkWorking   = document.getElementById('chk-working');
+    #chkDead      = document.getElementById('chk-dead');
+    #chkSkip      = document.getElementById('chk-skip');
+    #resultCard   = document.getElementById('check-result-card');
+    #dlBtn        = document.getElementById('download-working-btn');
+    #tabCheck     = document.getElementById('tab-check');
+
+    constructor() {
+      this.#checkBtn.addEventListener('click', () => this.#run());
+      this.#dlBtn.addEventListener('click', () => downloadFile(store.workingProfiles, `working_${today()}.txt`));
+      bus.on('app:collect-done', () => this.#syncReady());
+      bus.on('app:reset', () => this.#syncReady());
+      bus.on('app:check-screen-entered', () => this.#syncReady());
+    }
+
+    #syncReady() {
+      if (store.allProfiles.length === 0) {
+        this.#statusLine.textContent = 'Сначала загрузи профили на вкладке «Сбор»';
+        this.#statusLine.classList.remove('ready');
+        this.#checkBtn.disabled = true;
+        this.#tabCheck.classList.remove('has-data');
+      } else if (!store.isChecking) {
+        this.#statusLine.textContent = `Готово: ${store.allProfiles.length.toLocaleString()} профилей`;
+        this.#statusLine.classList.add('ready');
+        this.#checkBtn.disabled = false;
+        this.#tabCheck.classList.add('has-data');
+      }
+    }
+
+    async #run() {
+      store.setWorkingProfiles([]);
+      store.setChecking(true);
+      this.#progressCard.classList.remove('hidden');
+      this.#resultCard.classList.add('hidden');
+      this.#checkBtn.disabled = true;
+      this.#tabCheck.classList.add('processing-warn');
+      this.#tabCheck.classList.remove('has-data');
+      bus.emit('app:wake-lock-acquire');
+
+      const profiles = store.allProfiles;
+      const total    = profiles.length;
+      const working  = [];
+      let checked = 0, dead = 0, skipped = 0;
+      this.#update(0, total, 0, 0, 0);
+
+      let idx = 0;
+      const worker = async () => {
+        while (idx < total && store.isChecking) {
+          const i   = idx++;
+          const res = await checkProfile(profiles[i]);
+          checked++;
+          if (res.ok) working.push(profiles[i]);
+          else if (res.reason === 'noparse') skipped++;
+          else dead++;
+          this.#update(checked, total, working.length, dead, skipped);
+        }
+      };
+
+      await Promise.all(Array.from({ length: CHECK_CONCURRENCY }, worker));
+
+      store.setWorkingProfiles(working);
+      store.setChecking(false);
+      this.#progressCard.classList.remove('card--scanning');
+      this.#tabCheck.classList.remove('processing-warn');
+
+      document.getElementById('cr-working').textContent = working.length.toLocaleString();
+      document.getElementById('cr-failed').textContent  = (dead + skipped).toLocaleString();
+      this.#resultCard.classList.remove('hidden');
+      this.#checkBtn.disabled = false;
+      this.#tabCheck.classList.add('has-data');
+
+      if (!store.isCollecting) bus.emit('app:wake-lock-release');
+      bus.emit('app:announce-assertive', { msg: `Проверка завершена. Рабочих: ${working.length} из ${total}.` });
+      this.#syncReady();
+      this.#dlBtn.focus();
+    }
+
+    #update(checked, total, working, dead, skipped) {
+      const pct = total > 0 ? Math.round((checked / total) * 100) : 0;
+      this.#chkBar.style.inlineSize = pct + '%';
+      this.#chkBar.setAttribute('aria-valuenow', pct);
+      this.#chkText.textContent = `${checked} из ${total}`;
+      this.#chkPct.textContent  = pct + '%';
+      this.#chkWorking.textContent = working;
+      this.#chkDead.textContent    = dead;
+      this.#chkSkip.textContent    = skipped;
+    }
+  }
+
+  function normalizeUrl(raw) {
+    const ghRaw = raw.match(/^https?:\/\/github\.com\/([^/]+)\/([^/]+)\/raw\/(.+)$/);
+    if (ghRaw) return `https://raw.githubusercontent.com/${ghRaw[1]}/${ghRaw[2]}/${ghRaw[3]}`;
+    try {
+      const u = new URL(raw);
+      if (u.hostname.includes('translate.yandex') && u.searchParams.has('url'))
+        return u.searchParams.get('url');
+    } catch {}
+    return raw.split('#')[0];
+  }
+
+  async function fetchDirect(url) {
+    const res = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.text();
+  }
+
+  async function fetchWithFallback(url, useProxy) {
+    try { return { text: await fetchDirect(url), via: null }; }
+    catch (directErr) {
+      if (!useProxy) throw directErr;
+      let lastErr = directErr;
+      for (const proxy of PROXIES) {
+        try { return { text: await fetchDirect(proxy.make(url)), via: proxy.name }; }
+        catch (e) { lastErr = e; }
+      }
+      throw lastErr;
+    }
+  }
+
+  function tryBase64(text) {
+    try {
+      const clean = text.replace(/\s+/g, '');
+      const padded = clean + '='.repeat((4 - clean.length % 4) % 4);
+      const decoded = atob(padded);
+      if (decoded.includes('://') || decoded.includes('\n')) return decoded;
+    } catch {}
+    return text;
+  }
+
+  function parseProfiles(text) {
+    const content = tryBase64(text);
+    return content
+      .split(/\r?\n/)
+      .map(l => l.trim())
+      .filter(l => CONFIG_PREFIXES.some(p => l.toLowerCase().startsWith(p)));
+  }
+
+  function parseHostPort(line) {
+    try {
+      const pi    = line.indexOf('://');
+      if (pi < 0) return null;
+      const proto = line.slice(0, pi).toLowerCase();
+
+      if (proto === 'vmess') {
+        const json = JSON.parse(atob(line.slice(8)));
+        const port = parseInt(json.port);
+        return json.add && port ? { host: json.add, port } : null;
+      }
+      if (proto === 'ssr') {
+        const b64 = line.slice(6);
+        const pad = '='.repeat((4 - b64.length % 4) % 4);
+        const dec = atob((b64 + pad).replace(/-/g, '+').replace(/_/g, '/'));
+        const parts = dec.split(':');
+        if (parts.length >= 2 && parts[0] && parseInt(parts[1]))
+          return { host: parts[0], port: parseInt(parts[1]) };
+        return null;
+      }
+      if (proto === 'ss') {
+        try {
+          const u = new URL(line.split('#')[0]);
+          if (u.hostname && u.port) return { host: u.hostname, port: parseInt(u.port) };
+        } catch {}
+        const b64 = line.slice(5).split('#')[0].split('?')[0];
+        if (!b64.includes('@')) {
+          try {
+            const dec = atob(b64.replace(/-/g, '+').replace(/_/g, '/') + '==');
+            const at  = dec.lastIndexOf('@');
+            if (at >= 0) {
+              const hp = dec.slice(at + 1).split('/')[0];
+              const ci = hp.lastIndexOf(':');
+              if (ci >= 0) return { host: hp.slice(0, ci), port: parseInt(hp.slice(ci + 1)) };
+            }
+          } catch {}
+        }
+        return null;
+      }
+      const u = new URL(line.split('#')[0]);
+      if (u.hostname && u.port) return { host: u.hostname, port: parseInt(u.port) };
+      const after = line.slice(pi + 3);
+      const at    = after.lastIndexOf('@');
+      const seg   = (at >= 0 ? after.slice(at + 1) : after).split('?')[0].split('#')[0].split('/')[0];
+      const ci    = seg.lastIndexOf(':');
+      if (ci >= 0) {
+        const h = seg.slice(0, ci), p = parseInt(seg.slice(ci + 1));
+        if (h && p) return { host: h, port: p };
+      }
+    } catch {}
+    return null;
+  }
+
+  async function checkProfile(line) {
+    const hp = parseHostPort(line);
+    if (!hp) return { ok: false, reason: 'noparse' };
+    const { host, port } = hp;
+    try {
+      await fetch(`https://${host}:${port}`, { signal: AbortSignal.timeout(CHECK_TIMEOUT_MS) });
+      return { ok: true };
+    } catch (e) {
+      if (e.name === 'TimeoutError' || e.name === 'AbortError')
+        return { ok: false, reason: 'timeout' };
+      return { ok: true };
+    }
+  }
+
+  function shortUrl(url) {
+    try {
+      const u    = new URL(url);
+      const path = u.pathname.length > 26 ? u.pathname.slice(0, 26) + '…' : u.pathname;
+      return u.hostname + path;
+    } catch { return url.slice(0, 40); }
+  }
+
+  function today() { return new Date().toISOString().slice(0, 10); }
+
+  function downloadFile(lines, filename) {
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
+    const a    = document.createElement('a');
+    a.href     = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
+  }
+
+  class SplitBlock {
+    #card      = document.getElementById('split-card');
+    #summary   = document.getElementById('split-summary');
+    #list      = document.getElementById('chunk-list');
+    #dlBtn     = document.getElementById('download-all-btn');
+    #splitToggle = document.getElementById('split-toggle');
+    #copyTimers = new Map();
+    #checks     = {};
+
+    static CHUNK_SIZE     = 500;
+    static ACCORDION_SIZE = 5;
+
+    constructor() {
+      bus.on('app:collect-done', () => this.#render());
+      bus.on('app:reset', () => this.#clear());
+      this.#splitToggle.addEventListener('change', () => {
+        idb.saveMeta('splitToggle', this.#splitToggle.checked).catch(() => {});
+        this.#render();
+      });
+      this.#list.addEventListener('click', e => {
+        const copyBtn = e.target.closest('.btn-copy');
+        if (copyBtn) { this.#copy(copyBtn); return; }
+        const toggle = e.target.closest('.accordion-toggle');
+        if (toggle) this.#toggleAccordion(toggle);
+      });
+      this.#list.addEventListener('change', e => {
+        const cb = e.target.closest('.chunk-check');
+        if (!cb) return;
+        const idx = parseInt(cb.dataset.idx);
+        this.#checks[idx] = cb.checked;
+        idb.saveMeta('checks', this.#checks).catch(() => {});
+        const row = cb.closest('.chunk-row');
+        if (row) {
+          row.classList.toggle('chunk-row--done', cb.checked);
+          const numEl = row.querySelector('.chunk-num');
+          if (numEl) numEl.textContent = `Группа ${idx + 1}${cb.checked ? ' ✓' : ''}`;
+        }
+        this.#updateAccordionMeta(cb.closest('.accordion'));
+        bus.emit('app:announce-polite', {
+          msg: cb.checked
+            ? `Группа ${idx + 1} отмечена как использованная.`
+            : `Группа ${idx + 1} снята с отметки.`
+        });
+      });
+    }
+
+    async restoreFromStorage() {
+      try {
+        const [savedChecks, savedToggle] = await Promise.all([
+          idb.loadMeta('checks'),
+          idb.loadMeta('splitToggle')
+        ]);
+        this.#checks = (savedChecks && typeof savedChecks === 'object') ? savedChecks : {};
+        if (savedToggle === true) {
+          this.#splitToggle.checked = true;
+        }
+      } catch {
+        this.#checks = {};
+      }
+    }
+
+    #updateAccordionMeta(acc) {
+      if (!acc) return;
+      const checks     = acc.querySelectorAll('.chunk-check');
+      const total      = checks.length;
+      const done       = [...checks].filter(c => c.checked).length;
+      const metaEl     = acc.querySelector('.accordion-meta');
+      const toggleEl   = acc.querySelector('.accordion-toggle');
+      if (!metaEl || !toggleEl) return;
+      const rangeText  = metaEl.dataset.range ?? '';
+      const doneText   = done > 0 ? ` · ✓ ${done}/${total}` : '';
+      metaEl.textContent = rangeText + doneText;
+      const labelEl    = acc.querySelector('.accordion-label');
+      const groupLabel = labelEl ? labelEl.textContent : '';
+      toggleEl.setAttribute('aria-label',
+        done > 0 ? `${groupLabel}, использована ${done} из ${total} групп` : groupLabel
+      );
+    }
+
+    #render() {
+      const splitOn = this.#splitToggle.checked;
+      this.#card.classList.toggle('hidden', !splitOn);
+      this.#dlBtn.classList.toggle('hidden', splitOn);
+      if (!splitOn) return;
+
+      const profiles  = store.allProfiles;
+      const chunkSize = SplitBlock.CHUNK_SIZE;
+      const accSize   = SplitBlock.ACCORDION_SIZE;
+      const total     = profiles.length;
+      const count     = Math.ceil(total / chunkSize);
+      const accCount  = Math.ceil(count / accSize);
+
+      this.#summary.innerHTML =
+        `Найдено <strong>${total.toLocaleString('ru')}</strong> профилей → ` +
+        `<strong>${count}</strong> ${this.#plural(count, 'группа', 'группы', 'групп')} · ` +
+        `<strong>${accCount}</strong> ${this.#plural(accCount, 'аккордеон', 'аккордеона', 'аккордеонов')}`;
+
+      const frag = document.createDocumentFragment();
+      for (let a = 0; a < accCount; a++) {
+        const firstChunk = a * accSize;
+        const lastChunk  = Math.min(firstChunk + accSize - 1, count - 1);
+        const totalInAcc = lastChunk - firstChunk + 1;
+        const firstIdx   = firstChunk * chunkSize + 1;
+        const lastIdx    = Math.min((lastChunk + 1) * chunkSize, total);
+        const chunkRange = totalInAcc > 1
+          ? `Группы ${firstChunk + 1}–${lastChunk + 1}`
+          : `Группа ${firstChunk + 1}`;
+        const doneInAcc  = Array.from({ length: totalInAcc }, (_, i) => firstChunk + i)
+          .filter(ci => this.#checks[ci]).length;
+        const rangeStr   = `#${firstIdx.toLocaleString('ru')}–${lastIdx.toLocaleString('ru')}`;
+        const doneText   = doneInAcc > 0 ? ` · ✓ ${doneInAcc}/${totalInAcc}` : '';
+        const accAriaLabel = doneInAcc > 0
+          ? `${chunkRange}, использована ${doneInAcc} из ${totalInAcc} групп`
+          : chunkRange;
+
+        const acc = document.createElement('div');
+        acc.className = 'accordion';
+
+        const toggleBtn = document.createElement('button');
+        toggleBtn.className = 'accordion-toggle';
+        toggleBtn.setAttribute('aria-expanded', 'false');
+        toggleBtn.setAttribute('aria-controls', `acc-body-${a}`);
+        toggleBtn.setAttribute('aria-label', accAriaLabel);
+        toggleBtn.innerHTML =
+          `<span class="accordion-label" aria-hidden="true">${eh(chunkRange)}</span>` +
+          `<span class="accordion-meta" data-range="${eh(rangeStr)}" aria-hidden="true">${eh(rangeStr)}${eh(doneText)}</span>` +
+          `<span class="accordion-arrow" aria-hidden="true">▾</span>`;
+
+        const body = document.createElement('div');
+        body.className = 'accordion-body';
+        body.id = `acc-body-${a}`;
+
+        const inner = document.createElement('div');
+        inner.className = 'accordion-inner';
+
+        const rows = document.createElement('div');
+        rows.className = 'accordion-rows';
+        rows.setAttribute('role', 'list');
+
+        for (let ci = firstChunk; ci <= lastChunk; ci++) {
+          const start  = ci * chunkSize;
+          const chunk  = profiles.slice(start, start + chunkSize);
+          const isDone = !!this.#checks[ci];
+          const cbId   = `chunk-check-${ci}`;
+          const row    = document.createElement('div');
+          row.className = `chunk-row${isDone ? ' chunk-row--done' : ''}`;
+          row.setAttribute('role', 'listitem');
+          row.dataset.idx = ci;
+          row.innerHTML =
+            `<input type="checkbox" class="chunk-check" id="${cbId}" data-idx="${ci}"` +
+              `${isDone ? ' checked' : ''}` +
+              ` aria-label="Группа ${ci + 1} использована">` +
+            `<label for="${cbId}" class="chunk-info" style="cursor:pointer">` +
+              `<span class="chunk-num">Группа ${ci + 1}${isDone ? ' ✓' : ''}</span>` +
+              `<span class="chunk-count">${chunk.length.toLocaleString('ru')} профилей · #${(start + 1).toLocaleString('ru')}–${(start + chunk.length).toLocaleString('ru')}</span>` +
+            `</label>` +
+            `<button class="btn btn-copy" data-idx="${ci}"` +
+              ` aria-label="Скопировать группу ${ci + 1} — ${chunk.length} профилей">` +
+              `⎘ Копировать` +
+            `</button>`;
+          rows.appendChild(row);
+        }
+
+        inner.appendChild(rows);
+        body.appendChild(inner);
+        acc.appendChild(toggleBtn);
+        acc.appendChild(body);
+        frag.appendChild(acc);
+      }
+
+      this.#list.innerHTML = '';
+      this.#list.appendChild(frag);
+      bus.emit('app:announce-polite', { msg: `Режим разбивки: ${count} групп по ${chunkSize} профилей, объединённых в ${accCount} аккордеона.` });
+    }
+
+    #toggleAccordion(btn) {
+      const expanded = btn.getAttribute('aria-expanded') === 'true';
+      const bodyId   = btn.getAttribute('aria-controls');
+      const body     = document.getElementById(bodyId);
+      btn.setAttribute('aria-expanded', String(!expanded));
+      body.classList.toggle('open', !expanded);
+    }
+
+    async #copy(btn) {
+      const idx   = parseInt(btn.dataset.idx);
+      const size  = SplitBlock.CHUNK_SIZE;
+      const chunk = store.allProfiles.slice(idx * size, idx * size + size);
+      try {
+        await navigator.clipboard.writeText(chunk.join('\n'));
+        btn.textContent = '✓ Скопировано';
+        btn.classList.add('copied');
+        clearTimeout(this.#copyTimers.get(idx));
+        this.#copyTimers.set(idx, setTimeout(() => {
+          btn.textContent = '⎘ Копировать';
+          btn.classList.remove('copied');
+          this.#copyTimers.delete(idx);
+        }, 1500));
+        bus.emit('app:toast', { msg: `Группа ${idx + 1} скопирована (${chunk.length} профилей)` });
+      } catch {
+        bus.emit('app:toast', { msg: 'Не удалось скопировать. Попробуй ещё раз.' });
+      }
+    }
+
+    #clear() {
+      this.#card.classList.add('hidden');
+      this.#list.innerHTML = '';
+      this.#summary.textContent = '';
+      this.#dlBtn.classList.remove('hidden');
+      this.#copyTimers.forEach(t => clearTimeout(t));
+      this.#copyTimers.clear();
+      this.#checks = {};
+    }
+
+    #plural(n, one, few, many) {
+      const mod10  = n % 10;
+      const mod100 = n % 100;
+      if (mod10 === 1 && mod100 !== 11) return one;
+      if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return few;
+      return many;
+    }
+  }
+
+  new ToastBlock();
+  new AnnounceBlock();
+  new ConfirmBlock();
+  new NavigationBlock();
+  new WakeLockBlock();
+  new ExitGuardBlock();
+  const collectBlock = new CollectBlock();
+  new CheckBlock();
+  const splitBlock = new SplitBlock();
+
+  (async () => {
+    await splitBlock.restoreFromStorage();
+    await collectBlock.restoreFromStorage();
+  })();
+})();
+</script>
+</body>
+</html>
